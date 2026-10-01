@@ -11,55 +11,33 @@
   let state = STATES.INTRO, last = 0, hits = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, stunT = 0, sequenceT = 0, camX = 0;
   let keys = {}, touch = { left:false, right:false, jump:false }, coins = [], nextLetterX = 480, phraseIndex = 0;
   const heroImg = new Image(), yadiraImg = new Image(), wilsonImg = new Image();
-  heroImg.src = "images/hero.png";
-  yadiraImg.src = "images/yadira.png";
-  wilsonImg.src = "images/wilson.png";
-  const hero = { x:200, y:640, vx:0, vy:0, w:86, h:190, facing:1, onGround:true, walk:0 };
-  const mouse = { x:560, y:640, vx:0, vy:0, dir:1, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0 };
+  heroImg.src = "images/hero.png"; yadiraImg.src = "images/yadira.png"; wilsonImg.src = "images/wilson.png";
+  const hero = { x:200, y:640, vx:0, vy:0, w:86, h:190, facing:1, onGround:true, walk:0, crouch:0 };
+  const mouse = { x:560, y:640, vx:0, vy:0, dir:1, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0, walk:0, pocket:0 };
   function enemyImg(){ return level === 1 ? yadiraImg : wilsonImg; }
   function enemyName(){ return level === 1 ? "Yadira" : "Wilson"; }
   function aspect(img){ return (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 0.7; }
-  function sizeFromHeight(img, height){
-    const h = height;
-    const w = h * aspect(img);
-    return { w, h };
-  }
+  function sizeFromHeight(img, height){ return { h: height, w: height * aspect(img) }; }
   function applyLayoutSize(){
     portrait = window.innerWidth < 820 || window.innerHeight > window.innerWidth;
     W = portrait ? 780 : 1400; H = portrait ? 1280 : 780; GROUND = portrait ? 1080 : 640;
     canvas.width = W; canvas.height = H;
-    hero.h = portrait ? 210 : 190;
-    hero.w = hero.h * aspect(heroImg);
-    mouse.h = hero.h * 2.15;
-    mouse.w = mouse.h * aspect(enemyImg());
+    hero.h = portrait ? 210 : 190; hero.w = hero.h * aspect(heroImg);
+    mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg());
     const wrap = document.getElementById("game-wrap"), stage = document.getElementById("stage");
-    const r = wrap.getBoundingClientRect();
-    const scale = Math.min(r.width / W, r.height / H);
-    canvas.style.width = Math.floor(W * scale) + "px";
-    canvas.style.height = Math.floor(H * scale) + "px";
+    const r = wrap.getBoundingClientRect(), scale = Math.min(r.width / W, r.height / H);
+    canvas.style.width = Math.floor(W * scale) + "px"; canvas.style.height = Math.floor(H * scale) + "px";
     if (stage) { stage.style.width = canvas.style.width; stage.style.height = canvas.style.height; }
   }
   function spawnLetter(ch, x){
     const grid = FONT[ch]; if (!grid) return;
-    const cell = portrait ? 18 : 16;
-    const high = phraseIndex % 2 === 0;
+    const cell = portrait ? 18 : 16, high = phraseIndex % 2 === 0;
     const top = high ? GROUND - (portrait ? 430 : 390) : GROUND - (portrait ? 280 : 250);
     for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", r:8, flyVx:0, flyVy:0, delay:0 });
   }
-  function ensureSigns(){
-    while (nextLetterX < camX + W + 700) {
-      const ch = PHRASE[phraseIndex % PHRASE.length];
-      if (ch !== " ") spawnLetter(ch, nextLetterX);
-      nextLetterX += ch === " " ? 70 : 140;
-      phraseIndex++;
-    }
-  }
-  function placeEnemy(){
-    mouse.h = hero.h * 2.15;
-    mouse.w = mouse.h * aspect(enemyImg());
-    mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null;
-  }
-  function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; placeEnemy(); ensureSigns(); updateHud(); }
+  function ensureSigns(){ while (nextLetterX < camX + W + 700) { const ch = PHRASE[phraseIndex % PHRASE.length]; if (ch !== " ") spawnLetter(ch, nextLetterX); nextLetterX += ch === " " ? 70 : 140; phraseIndex++; } }
+  function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; }
+  function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.crouch = 0; placeEnemy(); ensureSigns(); updateHud(); }
   window.addEventListener("resize", applyLayoutSize);
   heroImg.onload = yadiraImg.onload = wilsonImg.onload = applyLayoutSize;
   applyLayoutSize(); resetWorld();
@@ -68,9 +46,7 @@
   window.addEventListener("keydown", e => { keys[e.code]=true; if(["ArrowLeft","ArrowRight","ArrowUp","Space"].includes(e.code)) e.preventDefault(); });
   window.addEventListener("keyup", e => { keys[e.code]=false; });
   function bindHold(el, prop){ const on=ev=>{ev.preventDefault(); touch[prop]=true;}; const off=ev=>{ev.preventDefault(); touch[prop]=false;}; el.addEventListener("pointerdown", on); el.addEventListener("pointerup", off); el.addEventListener("pointerleave", off); }
-  bindHold(document.getElementById("btn-left"), "left");
-  bindHold(document.getElementById("btn-right"), "right");
-  bindHold(document.getElementById("btn-jump"), "jump");
+  bindHold(document.getElementById("btn-left"), "left"); bindHold(document.getElementById("btn-right"), "right"); bindHold(document.getElementById("btn-jump"), "jump");
   document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "\ud83d\udd07" : "\ud83d\udd0a"; });
   document.getElementById("btn-start").addEventListener("click", startGame);
   document.getElementById("btn-again").addEventListener("click", resetGame);
@@ -80,7 +56,8 @@
   function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
   function drawnMouse(){ return sizeFromHeight(enemyImg(), mouse.h * mouse.scale); }
   function reachY(){ return mouse.y - drawnMouse().h * 0.42; }
-  function handPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.36, y: mouse.y - s.h * 0.45 }; }
+  function pocketPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.22, y: mouse.y - s.h * 0.34 }; }
+  function shoulderPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.28, y: mouse.y - s.h * 0.62 }; }
   function nearestAhead(){ let best=null, bestD=1e9; for (const c of coins){ if (c.stolen||c.state!=="home"||c.x<mouse.x-20) continue; const d=c.x-mouse.x+Math.abs(c.y-reachY())*0.25; if (d<bestD){ bestD=d; best=c; } } return best; }
   function applyGravity(b, dt){ b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt; if (b.y>=GROUND){ b.y=GROUND; b.vy=0; b.onGround=true; } else b.onGround=false; }
   function updateHero(dt){
@@ -88,24 +65,30 @@
     if (right && !left){ hero.vx += HERO_ACC*dt; hero.facing=1; } else if (left && !right){ hero.vx -= HERO_ACC*dt; hero.facing=-1; }
     else hero.vx += (hero.vx>0?-1:1)*Math.min(Math.abs(hero.vx), HERO_FRI*dt);
     hero.vx = Math.max(-HERO_MAX, Math.min(HERO_MAX, hero.vx));
-    if (jump && hero.onGround){ hero.vy = JUMP_V; hero.onGround=false; beep(420,0.12,"square",0.07); }
+    if (jump && hero.onGround && hero.crouch <= 0){ hero.crouch = 0.14; }
+    if (hero.crouch > 0){ hero.crouch -= dt; if (hero.crouch <= 0){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); } }
     applyGravity(hero, dt);
     if (hero.x < camX+30){ hero.x = camX+30; hero.vx = Math.max(0, hero.vx); }
     if (Math.abs(hero.vx)>30 && hero.onGround) hero.walk += dt*10;
   }
   function updateMouse(dt){
+    mouse.walk += dt * 8; mouse.pocket = Math.max(0, mouse.pocket - dt);
     if (mouse.grab){
-      mouse.grabT += dt; const hand = handPos();
-      mouse.grab.x += (hand.x-mouse.grab.x)*Math.min(1, dt*12);
-      mouse.grab.y += (hand.y-mouse.grab.y)*Math.min(1, dt*12);
-      if (mouse.grabT > 0.34){ mouse.grab.stolen=true; mouse.grab.state="pocket"; stolenCount++; mouse.grab=null; beep(300,0.1,"square",0.05); updateHud(); }
-      mouse.vx = 30; applyGravity(mouse, dt); return;
+      mouse.grabT += dt;
+      const coin = mouse.grab, shoulder = shoulderPos(), pocket = pocketPos();
+      const reach = mouse.grabT < 0.22;
+      const tx = reach ? coin.ox : pocket.x, ty = reach ? coin.oy : pocket.y;
+      coin.x += (tx - coin.x) * Math.min(1, dt * 10);
+      coin.y += (ty - coin.y) * Math.min(1, dt * 10);
+      coin.state = "grab";
+      if (mouse.grabT > 0.5){ coin.stolen = true; coin.state = "pocket"; stolenCount++; mouse.pocket = 0.28; mouse.grab = null; beep(300,0.1,"square",0.05); updateHud(); }
+      mouse.vx = 24; applyGravity(mouse, dt); return;
     }
     if (!mouse.target || mouse.target.stolen) mouse.target = nearestAhead();
     mouse.vx = mouse.speed;
-    if (mouse.target && mouse.target.x - mouse.x < 40){
+    if (mouse.target && mouse.target.x - mouse.x < 42){
       if (mouse.target.y < reachY()-20 && mouse.onGround) mouse.vy = JUMP_V;
-      if (Math.abs(mouse.target.y - reachY()) < 52){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
+      if (Math.abs(mouse.target.y - reachY()) < 54){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
     }
     applyGravity(mouse, dt);
   }
@@ -119,13 +102,9 @@
     if (hits < 5){ mouse.scale = 1 - hits*0.14; hintEl.textContent = "Golpe "+hits+"/5 sobre "+enemyName(); }
     else { state = STATES.FINAL_HIT; sequenceT = 0; hintEl.textContent = enemyName()+" desaparece"; beep(90,0.3,"sawtooth",0.12); }
   }
-  function explodeMouse(){
-    mouse.alive = false;
-    coins.forEach(c => { if (!c.stolen) return; c.state="fly"; c.x=mouse.x; c.y=mouse.y-80; c.flyVx=(Math.random()-0.3)*400; c.flyVy=-220-Math.random()*200; });
-  }
+  function explodeMouse(){ mouse.alive = false; coins.forEach(c => { if (!c.stolen) return; c.state="fly"; c.x=mouse.x; c.y=mouse.y-80; c.flyVx=(Math.random()-0.3)*400; c.flyVy=-220-Math.random()*200; }); }
   function update(dt){
-    if (dt>0.05) dt=0.05;
-    hitLock=Math.max(0,hitLock-dt); stunT=Math.max(0,stunT-dt);
+    if (dt>0.05) dt=0.05; hitLock=Math.max(0,hitLock-dt); stunT=Math.max(0,stunT-dt);
     if (state===STATES.INTRO || state===STATES.DEFEAT || state===STATES.VICTORY) return;
     if (state===STATES.PLAYING){ updateHero(dt); if (stunT<=0 && mouse.alive) updateMouse(dt); else applyGravity(mouse,dt); checkStomp(); ensureSigns(); if (stolenCount>=GOAL){ state=STATES.DEFEAT; hintEl.style.display="none"; document.getElementById("lives-left").textContent = enemyName()+" lleg\u00f3 a 1000 monedas."; document.getElementById("defeat").classList.add("show"); } }
     if (state===STATES.FINAL_HIT){ sequenceT+=dt; if (sequenceT>0.25){ explodeMouse(); state=STATES.COIN_EXPLOSION; sequenceT=0; } }
@@ -140,29 +119,39 @@
     }
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
-  function drawSprite(img, x, y, height, facing){
-    if (!img.complete || !img.naturalWidth) return { w:0, h:0 };
-    const s = sizeFromHeight(img, height);
-    ctx.save();
-    ctx.translate(x-camX, y);
-    if (facing<0) ctx.scale(-1,1);
-    ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h);
+  function limb(x1,y1,x2,y2,color,width){ ctx.strokeStyle=color; ctx.lineWidth=width; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x2,y2,width*0.55,0,6.3); ctx.fill(); }
+  function drawHero(){
+    if (!heroImg.complete || !heroImg.naturalWidth) return;
+    const s = sizeFromHeight(heroImg, hero.h); hero.w = s.w;
+    const bend = hero.crouch > 0 || (!hero.onGround && hero.vy < 0);
+    const falling = !hero.onGround && hero.vy > 80;
+    const step = hero.onGround ? Math.sin(hero.walk) * 0.35 : 0;
+    ctx.save(); ctx.translate(hero.x-camX, hero.y); if (hero.facing<0) ctx.scale(-1,1);
+    ctx.drawImage(heroImg, 0, 0, heroImg.naturalWidth, heroImg.naturalHeight*0.58, -s.w/2, -s.h, s.w, s.h*0.58);
+    ctx.save(); ctx.translate(0, -s.h*0.42); ctx.rotate(bend ? 0.45 : step); ctx.drawImage(heroImg, 0, heroImg.naturalHeight*0.55, heroImg.naturalWidth, heroImg.naturalHeight*0.45, -s.w/2, 0, s.w, s.h*0.45); ctx.restore();
+    const arm = falling ? -2.4 : (bend ? 0.4 : step * 1.4);
+    limb(-s.w*0.28, -s.h*0.72, -s.w*0.28 + Math.sin(arm)*s.w*0.34, -s.h*0.72 + Math.cos(arm)*s.h*0.28, "#f0c7a8", 7);
+    limb(s.w*0.28, -s.h*0.72, s.w*0.28 + Math.sin(arm+0.4)*s.w*0.3, -s.h*0.72 + Math.cos(arm)*s.h*0.28, "#f0c7a8", 7);
     ctx.restore();
-    return s;
+  }
+  function drawMouse(){
+    if (!mouse.alive) return;
+    const img = enemyImg(); if (!img.complete || !img.naturalWidth) return;
+    const s = sizeFromHeight(img, mouse.h * mouse.scale); mouse.w = s.w;
+    const bob = mouse.onGround ? Math.sin(mouse.walk) * 3 : 0;
+    ctx.save(); ctx.translate(mouse.x-camX, mouse.y + bob); ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h); ctx.restore();
+    const shoulder = shoulderPos(), pocket = pocketPos();
+    let hand = { x: shoulder.x + Math.sin(mouse.walk)*18, y: shoulder.y + 36 + Math.cos(mouse.walk)*8 };
+    if (mouse.grab){ const t = Math.min(1, mouse.grabT / 0.22); const back = mouse.grabT > 0.22; hand = back ? { x: pocket.x, y: pocket.y } : { x: mouse.grab.x, y: mouse.grab.y }; if (!back) hand = { x: shoulder.x + (mouse.grab.x-shoulder.x)*t, y: shoulder.y + (mouse.grab.y-shoulder.y)*t }; }
+    limb(shoulder.x-camX, shoulder.y, hand.x-camX, hand.y, level===1 ? "#c9aa90" : "#b89a84", 9);
+    if (mouse.pocket > 0){ ctx.fillStyle = "rgba(90,60,30,.35)"; ctx.beginPath(); ctx.arc(pocket.x-camX, pocket.y, 16+mouse.pocket*20, 0, 6.3); ctx.fill(); }
   }
   function draw(){
     const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#5ec4f5"); g.addColorStop(1,"#9ad8f8"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(120,70,26,0,6.3); ctx.arc(420,90,22,0,6.3); ctx.fill();
-    ctx.fillStyle="#6d3a16"; ctx.fillRect(0,GROUND,W,H-GROUND);
-    ctx.fillStyle="#3d8c3a"; ctx.fillRect(0,GROUND-8,W,8);
-    for (const c of coins){ if (c.state==="pocket" || c.x<camX-20 || c.x>camX+W+20) continue; ctx.fillStyle="#ffd54a"; ctx.beginPath(); ctx.arc(c.x-camX,c.y,c.r,0,6.3); ctx.fill(); }
-    const hs = sizeFromHeight(heroImg, hero.h);
-    hero.w = hs.w;
-    drawSprite(heroImg, hero.x, hero.y, hero.h, hero.facing);
-    if (mouse.alive) {
-      const ms = drawSprite(enemyImg(), mouse.x, mouse.y, mouse.h * mouse.scale, 1);
-      mouse.w = ms.w; mouse.h = mouse.h;
-    }
+    ctx.fillStyle="#6d3a16"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#3d8c3a"; ctx.fillRect(0,GROUND-8,W,8);
+    for (const c of coins){ if (c.state==="pocket" || c.x<camX-30 || c.x>camX+W+30) continue; ctx.fillStyle="#ffd54a"; ctx.beginPath(); ctx.arc(c.x-camX,c.y,c.r,0,6.3); ctx.fill(); ctx.fillStyle="#c78300"; ctx.font="700 9px sans-serif"; ctx.fillText("$", c.x-camX-3, c.y+3); }
+    drawHero(); drawMouse();
   }
   function loop(ts){ if(!last) last=ts; const dt=(ts-last)/1000; last=ts; update(dt); draw(); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
