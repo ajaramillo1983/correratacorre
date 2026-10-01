@@ -8,15 +8,23 @@
   const STATES = { INTRO:"INTRO", PLAYING:"PLAYING", FINAL_HIT:"FINAL_HIT", COIN_EXPLOSION:"COIN_EXPLOSION", COIN_RETURN:"COIN_RETURN", VICTORY:"VICTORY", DEFEAT:"DEFEAT" };
   const FONT = { S:["01110","10001","10000","01110","00001","10001","01110"], A:["01110","10001","10001","11111","10001","10001","10001"], N:["10001","11001","10101","10011","10001","10001","10001"], T:["11111","00100","00100","00100","00100","00100","00100"], O:["01110","10001","10001","10001","10001","10001","01110"], D:["11110","10001","10001","10001","10001","10001","11110"], M:["10001","11011","10101","10101","10001","10001","10001"], I:["11111","00100","00100","00100","00100","00100","11111"], G:["01110","10001","10000","10111","10001","10001","01110"] };
   const PHRASE = "SANTO DOMINGO";
-  let state = STATES.INTRO, last = 0, hits = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, stunT = 0, sequenceT = 0, camX = 0;
+  let state = STATES.INTRO, last = 0, hits = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, stunT = 0, sequenceT = 0, camX = 0, clock = 0;
   let keys = {}, touch = { left:false, right:false, jump:false }, coins = [], nextLetterX = 480, phraseIndex = 0;
-  const heroImg = new Image(), yadiraImg = new Image(), wilsonImg = new Image();
-  heroImg.src = "images/hero.png"; yadiraImg.src = "images/yadira.png"; wilsonImg.src = "images/wilson.png";
+  function load(src){ const img = new Image(); img.src = src; return img; }
+  const frames = {
+    hero: { idle: load("images/hero.png"), walk: load("images/hero-walk.png"), jump: load("images/hero-jump.png"), fall: load("images/hero-fall.png") },
+    yadira: { idle: load("images/yadira.png"), walk: load("images/yadira-walk.png"), grab: load("images/yadira-grab.png"), pocket: load("images/yadira-pocket.png") },
+    wilson: { idle: load("images/wilson.png"), walk: load("images/wilson-walk.png"), grab: load("images/wilson-grab.png"), pocket: load("images/wilson-pocket.png") }
+  };
+  const heroImg = frames.hero.idle, yadiraImg = frames.yadira.idle, wilsonImg = frames.wilson.idle;
   const hero = { x:200, y:640, vx:0, vy:0, w:86, h:190, facing:1, onGround:true };
-  const mouse = { x:560, y:640, vx:0, vy:0, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0 };
-  function enemyImg(){ return level === 1 ? yadiraImg : wilsonImg; }
+  const mouse = { x:560, y:640, vx:0, vy:0, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0, pose:"idle" };
+  function enemyKey(){ return level === 1 ? "yadira" : "wilson"; }
+  function enemyImg(){ return frames[enemyKey()].idle; }
   function enemyName(){ return level === 1 ? "Yadira" : "Wilson"; }
-  function aspect(img){ return (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 0.7; }
+  function ready(img){ return img && img.complete && img.naturalWidth; }
+  function pose(set, name){ return ready(set[name]) ? set[name] : set.idle; }
+  function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.7; }
   function sizeFromHeight(img, height){ return { h: height, w: height * aspect(img) }; }
   function applyLayoutSize(){
     portrait = window.innerWidth < 820 || window.innerHeight > window.innerWidth;
@@ -36,7 +44,7 @@
     for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", r: portrait ? 10 : 9.5, flyVx:0, flyVy:0, delay:0 });
   }
   function ensureSigns(){ while (nextLetterX < camX + W + 760) { const i = phraseIndex % PHRASE.length; const ch = PHRASE[i]; if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5); nextLetterX += ch === " " ? 90 : 150; phraseIndex++; } }
-  function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; }
+  function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; mouse.pose = "idle"; }
   function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; placeEnemy(); ensureSigns(); updateHud(); }
   window.addEventListener("resize", applyLayoutSize);
   heroImg.onload = yadiraImg.onload = wilsonImg.onload = applyLayoutSize;
@@ -56,6 +64,7 @@
   function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
   function drawnMouse(){ return sizeFromHeight(enemyImg(), mouse.h * mouse.scale); }
   function reachY(){ return mouse.y - drawnMouse().h * 0.42; }
+  function handPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.28, y: mouse.y - s.h * (mouse.pose === "pocket" ? 0.38 : 0.55) }; }
   function nearestAhead(){ let best=null, bestD=1e9; for (const c of coins){ if (c.stolen||c.state!=="home"||c.x<mouse.x-20) continue; const d=c.x-mouse.x+Math.abs(c.y-reachY())*0.25; if (d<bestD){ bestD=d; best=c; } } return best; }
   function applyGravity(b, dt){ b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt; if (b.y>=GROUND){ b.y=GROUND; b.vy=0; b.onGround=true; } else b.onGround=false; }
   function updateHero(dt){
@@ -70,18 +79,20 @@
   function updateMouse(dt){
     if (mouse.grab){
       mouse.grabT += dt;
-      const bag = { x: mouse.x, y: mouse.y - drawnMouse().h * 0.4 };
-      mouse.grab.x += (bag.x - mouse.grab.x) * Math.min(1, dt * 8);
-      mouse.grab.y += (bag.y - mouse.grab.y) * Math.min(1, dt * 8);
+      mouse.pose = mouse.grabT < 0.34 ? "grab" : "pocket";
+      const hand = handPos();
+      mouse.grab.x += (hand.x - mouse.grab.x) * Math.min(1, dt * 8);
+      mouse.grab.y += (hand.y - mouse.grab.y) * Math.min(1, dt * 8);
       mouse.grab.state = "grab";
-      if (mouse.grabT > 0.35){ mouse.grab.stolen = true; mouse.grab.state = "pocket"; stolenCount++; mouse.grab = null; beep(300,0.1,"square",0.05); updateHud(); }
-      mouse.vx = 24; applyGravity(mouse, dt); return;
+      if (mouse.grabT > 0.62){ mouse.grab.stolen = true; mouse.grab.state = "pocket"; stolenCount++; mouse.grab = null; mouse.pose = "idle"; beep(300,0.1,"square",0.05); updateHud(); }
+      mouse.vx = 20; applyGravity(mouse, dt); return;
     }
+    mouse.pose = Math.abs(mouse.vx) > 40 && mouse.onGround ? "walk" : "idle";
     if (!mouse.target || mouse.target.stolen) mouse.target = nearestAhead();
     mouse.vx = mouse.speed;
     if (mouse.target && mouse.target.x - mouse.x < 48){
       if (mouse.target.y < reachY()-20 && mouse.onGround) mouse.vy = JUMP_V;
-      if (Math.abs(mouse.target.y - reachY()) < 56){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
+      if (Math.abs(mouse.target.y - reachY()) < 56){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.pose = "grab"; mouse.vx = 0; }
     }
     applyGravity(mouse, dt);
   }
@@ -97,7 +108,7 @@
   }
   function explodeMouse(){ mouse.alive = false; coins.forEach(c => { if (!c.stolen) return; c.state="fly"; c.x=mouse.x; c.y=mouse.y-80; c.flyVx=(Math.random()-0.3)*400; c.flyVy=-220-Math.random()*200; }); }
   function update(dt){
-    if (dt>0.05) dt=0.05; hitLock=Math.max(0,hitLock-dt); stunT=Math.max(0,stunT-dt);
+    if (dt>0.05) dt=0.05; clock += dt; hitLock=Math.max(0,hitLock-dt); stunT=Math.max(0,stunT-dt);
     if (state===STATES.INTRO || state===STATES.DEFEAT || state===STATES.VICTORY) return;
     if (state===STATES.PLAYING){ updateHero(dt); if (stunT<=0 && mouse.alive) updateMouse(dt); else applyGravity(mouse,dt); checkStomp(); ensureSigns(); if (stolenCount>=GOAL){ state=STATES.DEFEAT; hintEl.style.display="none"; document.getElementById("lives-left").textContent = enemyName()+" lleg\u00f3 a 1000 monedas."; document.getElementById("defeat").classList.add("show"); } }
     if (state===STATES.FINAL_HIT){ sequenceT+=dt; if (sequenceT>0.25){ explodeMouse(); state=STATES.COIN_EXPLOSION; sequenceT=0; } }
@@ -113,12 +124,25 @@
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
   function drawSprite(img, x, y, height, facing){
-    if (!img.complete || !img.naturalWidth) return { w:0, h:0 };
+    if (!ready(img)) return { w:0, h:0 };
     const s = sizeFromHeight(img, height);
     ctx.save(); ctx.translate(x-camX, y); if (facing<0) ctx.scale(-1,1);
     ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h);
     ctx.restore();
     return s;
+  }
+  function heroFrame(){
+    if (!hero.onGround && hero.vy < 0) return pose(frames.hero, "jump");
+    if (!hero.onGround && hero.vy > 40) return pose(frames.hero, "fall");
+    if (hero.onGround && Math.abs(hero.vx) > 40 && Math.floor(clock * 6) % 2 === 0) return pose(frames.hero, "walk");
+    return frames.hero.idle;
+  }
+  function mouseFrame(){
+    const set = frames[enemyKey()];
+    if (mouse.pose === "grab") return pose(set, "grab");
+    if (mouse.pose === "pocket") return pose(set, "pocket");
+    if (mouse.pose === "walk" && Math.floor(clock * 6) % 2 === 0) return pose(set, "walk");
+    return set.idle;
   }
   function cloud(x, y, s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
   function palm(x){ const y=GROUND-6; ctx.strokeStyle="#8a5a28"; ctx.lineWidth=7; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+8,y-40,x-2,y-78); ctx.stroke(); ctx.fillStyle="#2f9a3a"; [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx,dy],i)=>{ ctx.beginPath(); ctx.ellipse(x+dx,y-78+dy,22,8,(i-2)*0.45,0,6.3); ctx.fill(); }); }
@@ -129,8 +153,8 @@
     ctx.fillStyle="#c46a32"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#3cab45"; ctx.fillRect(0,GROUND-10,W,12);
     const palmShift=camX*0.35; for (let x=180-(palmShift%340); x<W+40; x+=340) palm(x);
     for (const c of coins){ if (c.state==="pocket" || c.x<camX-30 || c.x>camX+W+30) continue; goldCoin(c); }
-    const hs = drawSprite(heroImg, hero.x, hero.y, hero.h, hero.facing); hero.w = hs.w;
-    if (mouse.alive){ const ms = drawSprite(enemyImg(), mouse.x, mouse.y, mouse.h * mouse.scale, 1); mouse.w = ms.w; }
+    const hs = drawSprite(heroFrame(), hero.x, hero.y, hero.h, hero.facing); hero.w = hs.w || hero.w;
+    if (mouse.alive){ const ms = drawSprite(mouseFrame(), mouse.x, mouse.y, mouse.h * mouse.scale, 1); mouse.w = ms.w || mouse.w; }
   }
   function loop(ts){ if(!last) last=ts; const dt=(ts-last)/1000; last=ts; update(dt); draw(); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
