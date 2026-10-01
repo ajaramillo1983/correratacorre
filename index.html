@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Defiende Santo Domingo</title>
+  <title>Corre Rata Corre</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="game-wrap">
     <div id="stage">
       <canvas id="game"></canvas>
+
       <div id="hud">
         <div class="hud-left">
-          <img id="hud-avatar" src="images/hero.png" alt="" />
+          <div id="hud-avatar" aria-hidden="true">★</div>
           <div class="hearts" id="hearts">❤ ❤ ❤</div>
         </div>
         <div class="hud-right">
@@ -20,31 +21,36 @@
           <div class="pill gold" id="coin-hud">🪙 0/1000</div>
         </div>
       </div>
-      <div id="hint" style="display:none">Salta sobre la cabeza del ratón 3 veces</div>
+
+      <div id="hint" style="display:none">Salta sobre la cabeza de la rata 3 veces</div>
+
       <div id="popup" class="popup show">
         <div class="popup-card">
           <div class="banner">¡DEFIENDE SANTO DOMINGO!</div>
-          <p class="lead">Wilson Erazo y Yadira Bayas se quieren robar Santo Domingo.</p>
-          <p class="mission">Tu misión es evitarlo.</p>
-          <p class="how">Persigue al ratón hacia la derecha y salta sobre su cabeza tres veces. Si junta 1000 monedas, gana él.</p>
+          <p class="lead">Una rata ladrona intenta llevarse las monedas de Santo Domingo.</p>
+          <p class="mission">Tu misión es detenerla.</p>
+          <p class="how">Persigue a la rata hacia la derecha y salta sobre su cabeza tres veces. Si junta 1000 monedas, gana.</p>
           <button id="btn-start" class="btn-green">COMENZAR</button>
         </div>
       </div>
+
       <div id="victory" class="popup">
         <div class="popup-card">
           <div class="banner win">¡SANTO DOMINGO ESTÁ A SALVO!</div>
-          <p class="lead">Detuviste el robo y recuperaste todas las monedas.</p>
+          <p class="lead">Detuviste a la rata y recuperaste todas las monedas.</p>
           <button id="btn-again" class="btn-green">JUGAR DE NUEVO</button>
         </div>
       </div>
+
       <div id="defeat" class="popup">
         <div class="popup-card">
-          <div class="banner lose">WILSON ERAZO GANÓ</div>
-          <p class="lead">Wilson Erazo juntó 1000 monedas, ganó las elecciones y se llevó todo el dinero.</p>
+          <div class="banner lose">LA RATA ESCAPÓ</div>
+          <p class="lead">La rata juntó 1000 monedas y logró escapar.</p>
           <p class="mission" id="lives-left"></p>
           <button id="btn-retry" class="btn-green">JUGAR DE NUEVO</button>
         </div>
       </div>
+
       <div id="controls">
         <button id="btn-left" aria-label="Izquierda">←</button>
         <button id="btn-right" aria-label="Derecha">→</button>
