@@ -12,8 +12,8 @@
   let keys = {}, touch = { left:false, right:false, jump:false }, coins = [], nextLetterX = 480, phraseIndex = 0;
   const heroImg = new Image(), yadiraImg = new Image(), wilsonImg = new Image();
   heroImg.src = "images/hero.png"; yadiraImg.src = "images/yadira.png"; wilsonImg.src = "images/wilson.png";
-  const hero = { x:200, y:640, vx:0, vy:0, w:86, h:190, facing:1, onGround:true, walk:0, crouch:0 };
-  const mouse = { x:560, y:640, vx:0, vy:0, dir:1, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0, walk:0, pocket:0 };
+  const hero = { x:200, y:640, vx:0, vy:0, w:86, h:190, facing:1, onGround:true };
+  const mouse = { x:560, y:640, vx:0, vy:0, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0 };
   function enemyImg(){ return level === 1 ? yadiraImg : wilsonImg; }
   function enemyName(){ return level === 1 ? "Yadira" : "Wilson"; }
   function aspect(img){ return (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 0.7; }
@@ -37,7 +37,7 @@
   }
   function ensureSigns(){ while (nextLetterX < camX + W + 760) { const i = phraseIndex % PHRASE.length; const ch = PHRASE[i]; if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5); nextLetterX += ch === " " ? 90 : 150; phraseIndex++; } }
   function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; }
-  function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.crouch = 0; placeEnemy(); ensureSigns(); updateHud(); }
+  function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; placeEnemy(); ensureSigns(); updateHud(); }
   window.addEventListener("resize", applyLayoutSize);
   heroImg.onload = yadiraImg.onload = wilsonImg.onload = applyLayoutSize;
   applyLayoutSize(); resetWorld();
@@ -55,18 +55,7 @@
   function resetGame(){ document.getElementById("victory").classList.remove("show"); document.getElementById("defeat").classList.remove("show"); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent="Nivel 1: salta 5 veces sobre Yadira"; state=STATES.PLAYING; }
   function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
   function drawnMouse(){ return sizeFromHeight(enemyImg(), mouse.h * mouse.scale); }
-  function reachY(){ return mouse.y - drawnMouse().h * 0.38; }
-  function tailSide(){ return level === 1 ? 1 : -1; }
-  function tailBase(){ const s = drawnMouse(); return { x: mouse.x + tailSide() * s.w * 0.28, y: mouse.y - s.h * 0.34 }; }
-  function pocketPos(){ const s = drawnMouse(); return { x: mouse.x + tailSide() * s.w * 0.1, y: mouse.y - s.h * 0.32 }; }
-  function tailTip(){
-    const base = tailBase();
-    if (!mouse.grab) return { x: base.x + tailSide() * 64, y: base.y + 16 + Math.sin(mouse.walk) * 8 };
-    const back = mouse.grabT > 0.24;
-    const t = back ? Math.min(1, (mouse.grabT - 0.24) / 0.28) : Math.min(1, mouse.grabT / 0.24);
-    const dest = back ? pocketPos() : { x: mouse.grab.x, y: mouse.grab.y };
-    return { x: base.x + (dest.x - base.x) * t, y: base.y + (dest.y - base.y) * t };
-  }
+  function reachY(){ return mouse.y - drawnMouse().h * 0.42; }
   function nearestAhead(){ let best=null, bestD=1e9; for (const c of coins){ if (c.stolen||c.state!=="home"||c.x<mouse.x-20) continue; const d=c.x-mouse.x+Math.abs(c.y-reachY())*0.25; if (d<bestD){ bestD=d; best=c; } } return best; }
   function applyGravity(b, dt){ b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt; if (b.y>=GROUND){ b.y=GROUND; b.vy=0; b.onGround=true; } else b.onGround=false; }
   function updateHero(dt){
@@ -74,27 +63,25 @@
     if (right && !left){ hero.vx += HERO_ACC*dt; hero.facing=1; } else if (left && !right){ hero.vx -= HERO_ACC*dt; hero.facing=-1; }
     else hero.vx += (hero.vx>0?-1:1)*Math.min(Math.abs(hero.vx), HERO_FRI*dt);
     hero.vx = Math.max(-HERO_MAX, Math.min(HERO_MAX, hero.vx));
-    if (jump && hero.onGround && hero.crouch <= 0) hero.crouch = 0.14;
-    if (hero.crouch > 0){ hero.crouch -= dt; if (hero.crouch <= 0){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); } }
+    if (jump && hero.onGround){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); }
     applyGravity(hero, dt);
     if (hero.x < camX+30){ hero.x = camX+30; hero.vx = Math.max(0, hero.vx); }
-    if (Math.abs(hero.vx)>30 && hero.onGround) hero.walk += dt*10;
   }
   function updateMouse(dt){
-    mouse.walk += dt * 8; mouse.pocket = Math.max(0, mouse.pocket - dt);
     if (mouse.grab){
-      mouse.grabT += dt; const tip = tailTip();
-      mouse.grab.x += (tip.x - mouse.grab.x) * Math.min(1, dt * 12);
-      mouse.grab.y += (tip.y - mouse.grab.y) * Math.min(1, dt * 12);
+      mouse.grabT += dt;
+      const bag = { x: mouse.x, y: mouse.y - drawnMouse().h * 0.4 };
+      mouse.grab.x += (bag.x - mouse.grab.x) * Math.min(1, dt * 8);
+      mouse.grab.y += (bag.y - mouse.grab.y) * Math.min(1, dt * 8);
       mouse.grab.state = "grab";
-      if (mouse.grabT > 0.56){ mouse.grab.stolen = true; mouse.grab.state = "pocket"; stolenCount++; mouse.pocket = 0.28; mouse.grab = null; beep(300,0.1,"square",0.05); updateHud(); }
+      if (mouse.grabT > 0.35){ mouse.grab.stolen = true; mouse.grab.state = "pocket"; stolenCount++; mouse.grab = null; beep(300,0.1,"square",0.05); updateHud(); }
       mouse.vx = 24; applyGravity(mouse, dt); return;
     }
     if (!mouse.target || mouse.target.stolen) mouse.target = nearestAhead();
     mouse.vx = mouse.speed;
-    if (mouse.target && mouse.target.x - mouse.x < 70){
+    if (mouse.target && mouse.target.x - mouse.x < 48){
       if (mouse.target.y < reachY()-20 && mouse.onGround) mouse.vy = JUMP_V;
-      if (Math.abs(mouse.target.y - reachY()) < 70){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
+      if (Math.abs(mouse.target.y - reachY()) < 56){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
     }
     applyGravity(mouse, dt);
   }
@@ -125,38 +112,13 @@
     }
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
-  function drawHero(){
-    if (!heroImg.complete || !heroImg.naturalWidth) return;
-    const s = sizeFromHeight(heroImg, hero.h); hero.w = s.w;
-    const iw = heroImg.naturalWidth, ih = heroImg.naturalHeight;
-    const bend = hero.crouch > 0 || (!hero.onGround && hero.vy < 0);
-    const falling = !hero.onGround && hero.vy > 80;
-    const step = hero.onGround ? Math.sin(hero.walk) * 0.35 : 0;
-    const arm = falling ? -1.15 : (bend ? 0.35 : step);
-    ctx.save(); ctx.translate(hero.x-camX, hero.y); if (hero.facing<0) ctx.scale(-1,1);
-    ctx.drawImage(heroImg, iw*0.22, 0, iw*0.56, ih*0.58, -s.w*0.28, -s.h, s.w*0.56, s.h*0.58);
-    ctx.save(); ctx.translate(-s.w*0.3, -s.h*0.72); ctx.rotate(arm); ctx.drawImage(heroImg, 0, ih*0.3, iw*0.24, ih*0.28, -s.w*0.04, 0, s.w*0.24, s.h*0.28); ctx.restore();
-    ctx.save(); ctx.translate(s.w*0.3, -s.h*0.72); ctx.rotate(-arm); ctx.drawImage(heroImg, iw*0.76, ih*0.3, iw*0.24, ih*0.28, -s.w*0.2, 0, s.w*0.24, s.h*0.28); ctx.restore();
-    ctx.save(); ctx.translate(0, -s.h*0.42); ctx.rotate(bend ? 0.45 : step); ctx.drawImage(heroImg, 0, ih*0.55, iw, ih*0.45, -s.w/2, 0, s.w, s.h*0.45); ctx.restore();
+  function drawSprite(img, x, y, height, facing){
+    if (!img.complete || !img.naturalWidth) return { w:0, h:0 };
+    const s = sizeFromHeight(img, height);
+    ctx.save(); ctx.translate(x-camX, y); if (facing<0) ctx.scale(-1,1);
+    ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h);
     ctx.restore();
-  }
-  function drawMouse(){
-    if (!mouse.alive) return;
-    const img = enemyImg(); if (!img.complete || !img.naturalWidth) return;
-    const s = sizeFromHeight(img, mouse.h * mouse.scale); mouse.w = s.w;
-    const iw = img.naturalWidth, ih = img.naturalHeight, side = tailSide();
-    const bob = mouse.onGround ? Math.sin(mouse.walk) * 3 : 0;
-    const base = tailBase(), tip = tailTip();
-    const ang = Math.atan2(tip.y - base.y, tip.x - base.x);
-    ctx.save(); ctx.translate(mouse.x-camX, mouse.y + bob);
-    if (side > 0) ctx.drawImage(img, 0, 0, iw*0.78, ih, -s.w/2, -s.h, s.w*0.78, s.h);
-    else ctx.drawImage(img, iw*0.22, 0, iw*0.78, ih, -s.w/2 + s.w*0.22, -s.h, s.w*0.78, s.h);
-    ctx.save();
-    ctx.translate(side * s.w * 0.28, -s.h * 0.34);
-    ctx.rotate(ang - (side > 0 ? 0.8 : 2.3));
-    if (side > 0) ctx.drawImage(img, iw*0.62, ih*0.42, iw*0.38, ih*0.38, 0, -s.h*0.08, s.w*0.38, s.h*0.38);
-    else ctx.drawImage(img, 0, ih*0.28, iw*0.36, ih*0.4, -s.w*0.36, -s.h*0.08, s.w*0.36, s.h*0.4);
-    ctx.restore(); ctx.restore();
+    return s;
   }
   function cloud(x, y, s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
   function palm(x){ const y=GROUND-6; ctx.strokeStyle="#8a5a28"; ctx.lineWidth=7; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+8,y-40,x-2,y-78); ctx.stroke(); ctx.fillStyle="#2f9a3a"; [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx,dy],i)=>{ ctx.beginPath(); ctx.ellipse(x+dx,y-78+dy,22,8,(i-2)*0.45,0,6.3); ctx.fill(); }); }
@@ -167,7 +129,8 @@
     ctx.fillStyle="#c46a32"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#3cab45"; ctx.fillRect(0,GROUND-10,W,12);
     const palmShift=camX*0.35; for (let x=180-(palmShift%340); x<W+40; x+=340) palm(x);
     for (const c of coins){ if (c.state==="pocket" || c.x<camX-30 || c.x>camX+W+30) continue; goldCoin(c); }
-    drawHero(); drawMouse();
+    const hs = drawSprite(heroImg, hero.x, hero.y, hero.h, hero.facing); hero.w = hs.w;
+    if (mouse.alive){ const ms = drawSprite(enemyImg(), mouse.x, mouse.y, mouse.h * mouse.scale, 1); mouse.w = ms.w; }
   }
   function loop(ts){ if(!last) last=ts; const dt=(ts-last)/1000; last=ts; update(dt); draw(); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
