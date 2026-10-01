@@ -58,13 +58,13 @@
   bindHold(document.getElementById("btn-left"), "left");
   bindHold(document.getElementById("btn-right"), "right");
   bindHold(document.getElementById("btn-jump"), "jump");
-  document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "\ud83d\udd07" : "\ud83d\udd0a"; });
+  document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "🔇" : "🔊"; });
   document.getElementById("btn-start").addEventListener("click", startGame);
   document.getElementById("btn-again").addEventListener("click", resetGame);
   document.getElementById("btn-retry").addEventListener("click", resetGame);
   function startGame(){ ensureAudio(); document.getElementById("popup").classList.remove("show"); hintEl.style.display="block"; hintEl.textContent="Nivel 1: salta 5 veces sobre Yadira"; state=STATES.PLAYING; }
   function resetGame(){ document.getElementById("victory").classList.remove("show"); document.getElementById("defeat").classList.remove("show"); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent="Nivel 1: salta 5 veces sobre Yadira"; state=STATES.PLAYING; }
-  function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
+  function updateHud(){ document.getElementById("coin-hud").textContent = "🪙 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "❤ ".repeat(lives).trim(); }
   function reachY(){ return mouse.y - mouse.h * mouse.scale * 0.42; }
   function handPos(){ return { x: mouse.x + mouse.w * mouse.scale * 0.42, y: mouse.y - mouse.h * mouse.scale * 0.45 }; }
   function nearestAhead(){ let best=null, bestD=1e9; for (const c of coins){ if (c.stolen||c.state!=="home"||c.x<mouse.x-20) continue; const d=c.x-mouse.x+Math.abs(c.y-reachY())*0.25; if (d<bestD){ bestD=d; best=c; } } return best; }
@@ -117,7 +117,7 @@
     if (dt>0.05) dt=0.05;
     hitLock=Math.max(0,hitLock-dt); stunT=Math.max(0,stunT-dt); mouse.squash += (1-mouse.squash)*Math.min(1,dt*8); mouse.bagPulse=Math.max(0,mouse.bagPulse-dt);
     if (state===STATES.INTRO || state===STATES.DEFEAT || state===STATES.VICTORY) return;
-    if (state===STATES.PLAYING){ updateHero(dt); if (stunT<=0 && mouse.alive) updateMouse(dt); else applyGravity(mouse,dt); checkStomp(); ensureSigns(); if (stolenCount>=GOAL){ state=STATES.DEFEAT; hintEl.style.display="none"; document.getElementById("lives-left").textContent = enemyName()+" lleg\u00f3 a 1000 monedas."; document.getElementById("defeat").classList.add("show"); } }
+    if (state===STATES.PLAYING){ updateHero(dt); if (stunT<=0 && mouse.alive) updateMouse(dt); else applyGravity(mouse,dt); checkStomp(); ensureSigns(); if (stolenCount>=GOAL){ state=STATES.DEFEAT; hintEl.style.display="none"; document.getElementById("lives-left").textContent = enemyName()+" llegó a 1000 monedas."; document.getElementById("defeat").classList.add("show"); } }
     if (state===STATES.FINAL_HIT){ sequenceT+=dt; if (sequenceT>0.25){ explodeMouse(); state=STATES.COIN_EXPLOSION; sequenceT=0; } }
     if (state===STATES.COIN_EXPLOSION){ sequenceT+=dt; coins.forEach(c=>{ if(c.state!=="fly")return; c.flyVy+=900*dt; c.x+=c.flyVx*dt; c.y+=c.flyVy*dt; if(c.y>GROUND-8){c.y=GROUND-8; c.flyVy*=-0.4;} }); if (sequenceT>1){ state=STATES.COIN_RETURN; coins.forEach((c,i)=>{ if(c.stolen){ c.state="return"; c.delay=(i%8)*0.02; } }); } }
     if (state===STATES.COIN_RETURN){
