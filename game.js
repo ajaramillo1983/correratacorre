@@ -33,15 +33,13 @@
     const grid = FONT[ch]; if (!grid) return;
     const cell = portrait ? 20 : 18;
     const top = high ? GROUND - (portrait ? 470 : 420) : GROUND - (portrait ? 290 : 255);
-    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", r: portrait ? 10 : 9.5, flyVx:0, flyVy:0, delay:0, spin: Math.random()*6 });
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", r: portrait ? 10 : 9.5, flyVx:0, flyVy:0, delay:0 });
   }
   function ensureSigns(){
     while (nextLetterX < camX + W + 760) {
-      const i = phraseIndex % PHRASE.length;
-      const ch = PHRASE[i];
+      const i = phraseIndex % PHRASE.length; const ch = PHRASE[i];
       if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5);
-      nextLetterX += ch === " " ? 90 : 150;
-      phraseIndex++;
+      nextLetterX += ch === " " ? 90 : 150; phraseIndex++;
     }
   }
   function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; }
@@ -63,9 +61,17 @@
   function resetGame(){ document.getElementById("victory").classList.remove("show"); document.getElementById("defeat").classList.remove("show"); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent="Nivel 1: salta 5 veces sobre Yadira"; state=STATES.PLAYING; }
   function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
   function drawnMouse(){ return sizeFromHeight(enemyImg(), mouse.h * mouse.scale); }
-  function reachY(){ return mouse.y - drawnMouse().h * 0.42; }
-  function pocketPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.22, y: mouse.y - s.h * 0.34 }; }
-  function shoulderPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.28, y: mouse.y - s.h * 0.62 }; }
+  function reachY(){ return mouse.y - drawnMouse().h * 0.38; }
+  function tailBase(){ const s = drawnMouse(); const side = level === 1 ? 1 : -1; return { x: mouse.x + side * s.w * 0.22, y: mouse.y - s.h * 0.36, side }; }
+  function pocketPos(){ const s = drawnMouse(); const side = level === 1 ? 1 : -1; return { x: mouse.x + side * s.w * 0.08, y: mouse.y - s.h * 0.32 }; }
+  function tailTip(){
+    const base = tailBase();
+    if (!mouse.grab) return { x: base.x + base.side * 70, y: base.y + 18 + Math.sin(mouse.walk) * 10 };
+    const back = mouse.grabT > 0.24;
+    const t = back ? Math.min(1, (mouse.grabT - 0.24) / 0.28) : Math.min(1, mouse.grabT / 0.24);
+    const dest = back ? pocketPos() : { x: mouse.grab.x, y: mouse.grab.y };
+    return { x: base.x + (dest.x - base.x) * t, y: base.y + (dest.y - base.y) * t };
+  }
   function nearestAhead(){ let best=null, bestD=1e9; for (const c of coins){ if (c.stolen||c.state!=="home"||c.x<mouse.x-20) continue; const d=c.x-mouse.x+Math.abs(c.y-reachY())*0.25; if (d<bestD){ bestD=d; best=c; } } return best; }
   function applyGravity(b, dt){ b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt; if (b.y>=GROUND){ b.y=GROUND; b.vy=0; b.onGround=true; } else b.onGround=false; }
   function updateHero(dt){
@@ -73,7 +79,7 @@
     if (right && !left){ hero.vx += HERO_ACC*dt; hero.facing=1; } else if (left && !right){ hero.vx -= HERO_ACC*dt; hero.facing=-1; }
     else hero.vx += (hero.vx>0?-1:1)*Math.min(Math.abs(hero.vx), HERO_FRI*dt);
     hero.vx = Math.max(-HERO_MAX, Math.min(HERO_MAX, hero.vx));
-    if (jump && hero.onGround && hero.crouch <= 0){ hero.crouch = 0.14; }
+    if (jump && hero.onGround && hero.crouch <= 0) hero.crouch = 0.14;
     if (hero.crouch > 0){ hero.crouch -= dt; if (hero.crouch <= 0){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); } }
     applyGravity(hero, dt);
     if (hero.x < camX+30){ hero.x = camX+30; hero.vx = Math.max(0, hero.vx); }
@@ -83,20 +89,18 @@
     mouse.walk += dt * 8; mouse.pocket = Math.max(0, mouse.pocket - dt);
     if (mouse.grab){
       mouse.grabT += dt;
-      const coin = mouse.grab, shoulder = shoulderPos(), pocket = pocketPos();
-      const reach = mouse.grabT < 0.22;
-      const tx = reach ? coin.ox : pocket.x, ty = reach ? coin.oy : pocket.y;
-      coin.x += (tx - coin.x) * Math.min(1, dt * 10);
-      coin.y += (ty - coin.y) * Math.min(1, dt * 10);
-      coin.state = "grab";
-      if (mouse.grabT > 0.5){ coin.stolen = true; coin.state = "pocket"; stolenCount++; mouse.pocket = 0.28; mouse.grab = null; beep(300,0.1,"square",0.05); updateHud(); }
+      const tip = tailTip();
+      mouse.grab.x += (tip.x - mouse.grab.x) * Math.min(1, dt * 12);
+      mouse.grab.y += (tip.y - mouse.grab.y) * Math.min(1, dt * 12);
+      mouse.grab.state = "grab";
+      if (mouse.grabT > 0.56){ mouse.grab.stolen = true; mouse.grab.state = "pocket"; stolenCount++; mouse.pocket = 0.28; mouse.grab = null; beep(300,0.1,"square",0.05); updateHud(); }
       mouse.vx = 24; applyGravity(mouse, dt); return;
     }
     if (!mouse.target || mouse.target.stolen) mouse.target = nearestAhead();
     mouse.vx = mouse.speed;
-    if (mouse.target && mouse.target.x - mouse.x < 42){
+    if (mouse.target && mouse.target.x - mouse.x < 70){
       if (mouse.target.y < reachY()-20 && mouse.onGround) mouse.vy = JUMP_V;
-      if (Math.abs(mouse.target.y - reachY()) < 54){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
+      if (Math.abs(mouse.target.y - reachY()) < 70){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.vx = 0; }
     }
     applyGravity(mouse, dt);
   }
@@ -148,63 +152,40 @@
     const s = sizeFromHeight(img, mouse.h * mouse.scale); mouse.w = s.w;
     const bob = mouse.onGround ? Math.sin(mouse.walk) * 3 : 0;
     ctx.save(); ctx.translate(mouse.x-camX, mouse.y + bob); ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h); ctx.restore();
-    const shoulder = shoulderPos(), pocket = pocketPos();
-    let hand = { x: shoulder.x + Math.sin(mouse.walk)*18, y: shoulder.y + 36 + Math.cos(mouse.walk)*8 };
-    if (mouse.grab){ const t = Math.min(1, mouse.grabT / 0.22); const back = mouse.grabT > 0.22; if (!back) hand = { x: shoulder.x + (mouse.grab.x-shoulder.x)*t, y: shoulder.y + (mouse.grab.y-shoulder.y)*t }; else hand = { x: pocket.x, y: pocket.y }; }
-    limb(shoulder.x-camX, shoulder.y, hand.x-camX, hand.y, level===1 ? "#c9aa90" : "#b89a84", 9);
-    if (mouse.pocket > 0){ ctx.fillStyle = "rgba(90,60,30,.35)"; ctx.beginPath(); ctx.arc(pocket.x-camX, pocket.y, 16+mouse.pocket*20, 0, 6.3); ctx.fill(); }
+    const base = tailBase(), tip = tailTip();
+    const mx = (base.x + tip.x) / 2 - camX, my = Math.min(base.y, tip.y) - 36;
+    ctx.strokeStyle = "#9a9a9a"; ctx.lineWidth = 11; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(base.x-camX, base.y); ctx.quadraticCurveTo(mx, my, tip.x-camX, tip.y); ctx.stroke();
+    ctx.fillStyle = "#b0b0b0"; ctx.beginPath(); ctx.arc(tip.x-camX, tip.y, 8, 0, 6.3); ctx.fill();
+    if (mouse.pocket > 0){ const p = pocketPos(); ctx.fillStyle = "rgba(90,60,30,.35)"; ctx.beginPath(); ctx.arc(p.x-camX, p.y, 16+mouse.pocket*20, 0, 6.3); ctx.fill(); }
   }
   function cloud(x, y, s){
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.ellipse(x, y, 34*s, 16*s, 0, 0, 6.3);
-    ctx.ellipse(x-22*s, y+4*s, 22*s, 14*s, 0, 0, 6.3);
-    ctx.ellipse(x+24*s, y+6*s, 26*s, 15*s, 0, 0, 6.3);
-    ctx.ellipse(x+4*s, y-10*s, 20*s, 14*s, 0, 0, 6.3);
-    ctx.fill();
-    ctx.fillStyle = "#e7f4ff";
-    ctx.beginPath(); ctx.ellipse(x, y+8*s, 28*s, 8*s, 0, 0, 6.3); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.beginPath();
+    ctx.ellipse(x, y, 34*s, 16*s, 0, 0, 6.3); ctx.ellipse(x-22*s, y+4*s, 22*s, 14*s, 0, 0, 6.3);
+    ctx.ellipse(x+24*s, y+6*s, 26*s, 15*s, 0, 0, 6.3); ctx.ellipse(x+4*s, y-10*s, 20*s, 14*s, 0, 0, 6.3); ctx.fill();
   }
   function palm(x){
-    const y = GROUND - 6;
-    ctx.strokeStyle = "#8a5a28"; ctx.lineWidth = 7; ctx.lineCap = "round";
+    const y = GROUND - 6; ctx.strokeStyle = "#8a5a28"; ctx.lineWidth = 7; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x+8, y-40, x-2, y-78); ctx.stroke();
     ctx.fillStyle = "#2f9a3a";
-    [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx, dy], i) => {
-      ctx.beginPath();
-      ctx.ellipse(x+dx, y-78+dy, 22, 8, (i-2)*0.45, 0, 6.3);
-      ctx.fill();
-    });
-    ctx.fillStyle = "#d28a2a";
-    ctx.beginPath(); ctx.ellipse(x+6, y-62, 5, 7, 0.4, 0, 6.3); ctx.fill();
+    [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx, dy], i) => { ctx.beginPath(); ctx.ellipse(x+dx, y-78+dy, 22, 8, (i-2)*0.45, 0, 6.3); ctx.fill(); });
   }
   function goldCoin(c){
     const x = c.x - camX, y = c.y, r = c.r;
-    ctx.fillStyle = "rgba(120,70,0,.28)";
-    ctx.beginPath(); ctx.ellipse(x+1, y+r*0.72, r*0.8, r*0.28, 0, 0, 6.3); ctx.fill();
     const g = ctx.createRadialGradient(x-r*0.35, y-r*0.4, r*0.2, x, y, r);
     g.addColorStop(0, "#fff1a8"); g.addColorStop(0.45, "#ffc62b"); g.addColorStop(1, "#d48900");
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
     ctx.strokeStyle = "#b87400"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.strokeStyle = "#ffe9a0"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, r*0.72, 0, 6.3); ctx.stroke();
-    ctx.fillStyle = "#fff8d2"; ctx.font = "900 " + Math.max(8, r) + "px Trebuchet MS"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("?", x, y+0.5);
+    ctx.fillStyle = "#fff8d2"; ctx.font = "900 " + Math.max(8, r) + "px Trebuchet MS"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("?", x, y+0.5);
   }
   function draw(){
-    const g = ctx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0, "#1f92f2"); g.addColorStop(0.55, "#67c6fb"); g.addColorStop(1, "#b7e6ff");
+    const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0, "#1f92f2"); g.addColorStop(0.55, "#67c6fb"); g.addColorStop(1, "#b7e6ff");
     ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
     const shift = camX * 0.15;
-    cloud(160 - (shift % 900), 78, 1.15);
-    cloud(520 - (shift % 1100), 130, 0.85);
-    cloud(860 - (shift % 980), 64, 1.25);
-    cloud(1180 - (shift % 1200), 150, 0.7);
+    cloud(160 - (shift % 900), 78, 1.15); cloud(520 - (shift % 1100), 130, 0.85); cloud(860 - (shift % 980), 64, 1.25);
     ctx.fillStyle = "#c46a32"; ctx.fillRect(0, GROUND, W, H-GROUND);
-    for (let x = -((camX*0.2)%28); x < W; x += 28){ ctx.strokeStyle = "#a24e22"; ctx.strokeRect(x, GROUND+8, 28, 18); }
     ctx.fillStyle = "#3cab45"; ctx.fillRect(0, GROUND-10, W, 12);
-    ctx.fillStyle = "#7ed36a"; for (let x = 0; x < W; x += 10) ctx.fillRect(x, GROUND-14, 4, 6);
-    const palmShift = camX * 0.35;
-    for (let x = 180 - (palmShift % 340); x < W + 40; x += 340) palm(x);
+    const palmShift = camX * 0.35; for (let x = 180 - (palmShift % 340); x < W + 40; x += 340) palm(x);
     for (const c of coins){ if (c.state==="pocket" || c.x<camX-30 || c.x>camX+W+30) continue; goldCoin(c); }
     drawHero(); drawMouse();
   }
