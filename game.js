@@ -35,13 +35,7 @@
     const top = high ? GROUND - (portrait ? 470 : 420) : GROUND - (portrait ? 290 : 255);
     for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", r: portrait ? 10 : 9.5, flyVx:0, flyVy:0, delay:0 });
   }
-  function ensureSigns(){
-    while (nextLetterX < camX + W + 760) {
-      const i = phraseIndex % PHRASE.length; const ch = PHRASE[i];
-      if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5);
-      nextLetterX += ch === " " ? 90 : 150; phraseIndex++;
-    }
-  }
+  function ensureSigns(){ while (nextLetterX < camX + W + 760) { const i = phraseIndex % PHRASE.length; const ch = PHRASE[i]; if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5); nextLetterX += ch === " " ? 90 : 150; phraseIndex++; } }
   function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; }
   function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.crouch = 0; placeEnemy(); ensureSigns(); updateHud(); }
   window.addEventListener("resize", applyLayoutSize);
@@ -62,11 +56,12 @@
   function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
   function drawnMouse(){ return sizeFromHeight(enemyImg(), mouse.h * mouse.scale); }
   function reachY(){ return mouse.y - drawnMouse().h * 0.38; }
-  function tailBase(){ const s = drawnMouse(); const side = level === 1 ? 1 : -1; return { x: mouse.x + side * s.w * 0.22, y: mouse.y - s.h * 0.36, side }; }
-  function pocketPos(){ const s = drawnMouse(); const side = level === 1 ? 1 : -1; return { x: mouse.x + side * s.w * 0.08, y: mouse.y - s.h * 0.32 }; }
+  function tailSide(){ return level === 1 ? 1 : -1; }
+  function tailBase(){ const s = drawnMouse(); return { x: mouse.x + tailSide() * s.w * 0.28, y: mouse.y - s.h * 0.34 }; }
+  function pocketPos(){ const s = drawnMouse(); return { x: mouse.x + tailSide() * s.w * 0.1, y: mouse.y - s.h * 0.32 }; }
   function tailTip(){
     const base = tailBase();
-    if (!mouse.grab) return { x: base.x + base.side * 70, y: base.y + 18 + Math.sin(mouse.walk) * 10 };
+    if (!mouse.grab) return { x: base.x + tailSide() * 64, y: base.y + 16 + Math.sin(mouse.walk) * 8 };
     const back = mouse.grabT > 0.24;
     const t = back ? Math.min(1, (mouse.grabT - 0.24) / 0.28) : Math.min(1, mouse.grabT / 0.24);
     const dest = back ? pocketPos() : { x: mouse.grab.x, y: mouse.grab.y };
@@ -88,8 +83,7 @@
   function updateMouse(dt){
     mouse.walk += dt * 8; mouse.pocket = Math.max(0, mouse.pocket - dt);
     if (mouse.grab){
-      mouse.grabT += dt;
-      const tip = tailTip();
+      mouse.grabT += dt; const tip = tailTip();
       mouse.grab.x += (tip.x - mouse.grab.x) * Math.min(1, dt * 12);
       mouse.grab.y += (tip.y - mouse.grab.y) * Math.min(1, dt * 12);
       mouse.grab.state = "grab";
@@ -131,61 +125,47 @@
     }
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
-  function limb(x1,y1,x2,y2,color,width){ ctx.strokeStyle=color; ctx.lineWidth=width; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x2,y2,width*0.55,0,6.3); ctx.fill(); }
   function drawHero(){
     if (!heroImg.complete || !heroImg.naturalWidth) return;
     const s = sizeFromHeight(heroImg, hero.h); hero.w = s.w;
+    const iw = heroImg.naturalWidth, ih = heroImg.naturalHeight;
     const bend = hero.crouch > 0 || (!hero.onGround && hero.vy < 0);
     const falling = !hero.onGround && hero.vy > 80;
     const step = hero.onGround ? Math.sin(hero.walk) * 0.35 : 0;
+    const arm = falling ? -1.15 : (bend ? 0.35 : step);
     ctx.save(); ctx.translate(hero.x-camX, hero.y); if (hero.facing<0) ctx.scale(-1,1);
-    ctx.drawImage(heroImg, 0, 0, heroImg.naturalWidth, heroImg.naturalHeight*0.58, -s.w/2, -s.h, s.w, s.h*0.58);
-    ctx.save(); ctx.translate(0, -s.h*0.42); ctx.rotate(bend ? 0.45 : step); ctx.drawImage(heroImg, 0, heroImg.naturalHeight*0.55, heroImg.naturalWidth, heroImg.naturalHeight*0.45, -s.w/2, 0, s.w, s.h*0.45); ctx.restore();
-    const arm = falling ? -2.4 : (bend ? 0.4 : step * 1.4);
-    limb(-s.w*0.28, -s.h*0.72, -s.w*0.28 + Math.sin(arm)*s.w*0.34, -s.h*0.72 + Math.cos(arm)*s.h*0.28, "#f0c7a8", 7);
-    limb(s.w*0.28, -s.h*0.72, s.w*0.28 + Math.sin(arm+0.4)*s.w*0.3, -s.h*0.72 + Math.cos(arm)*s.h*0.28, "#f0c7a8", 7);
+    ctx.drawImage(heroImg, iw*0.22, 0, iw*0.56, ih*0.58, -s.w*0.28, -s.h, s.w*0.56, s.h*0.58);
+    ctx.save(); ctx.translate(-s.w*0.3, -s.h*0.72); ctx.rotate(arm); ctx.drawImage(heroImg, 0, ih*0.3, iw*0.24, ih*0.28, -s.w*0.04, 0, s.w*0.24, s.h*0.28); ctx.restore();
+    ctx.save(); ctx.translate(s.w*0.3, -s.h*0.72); ctx.rotate(-arm); ctx.drawImage(heroImg, iw*0.76, ih*0.3, iw*0.24, ih*0.28, -s.w*0.2, 0, s.w*0.24, s.h*0.28); ctx.restore();
+    ctx.save(); ctx.translate(0, -s.h*0.42); ctx.rotate(bend ? 0.45 : step); ctx.drawImage(heroImg, 0, ih*0.55, iw, ih*0.45, -s.w/2, 0, s.w, s.h*0.45); ctx.restore();
     ctx.restore();
   }
   function drawMouse(){
     if (!mouse.alive) return;
     const img = enemyImg(); if (!img.complete || !img.naturalWidth) return;
     const s = sizeFromHeight(img, mouse.h * mouse.scale); mouse.w = s.w;
+    const iw = img.naturalWidth, ih = img.naturalHeight, side = tailSide();
     const bob = mouse.onGround ? Math.sin(mouse.walk) * 3 : 0;
-    ctx.save(); ctx.translate(mouse.x-camX, mouse.y + bob); ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h); ctx.restore();
     const base = tailBase(), tip = tailTip();
-    const mx = (base.x + tip.x) / 2 - camX, my = Math.min(base.y, tip.y) - 36;
-    ctx.strokeStyle = "#9a9a9a"; ctx.lineWidth = 11; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(base.x-camX, base.y); ctx.quadraticCurveTo(mx, my, tip.x-camX, tip.y); ctx.stroke();
-    ctx.fillStyle = "#b0b0b0"; ctx.beginPath(); ctx.arc(tip.x-camX, tip.y, 8, 0, 6.3); ctx.fill();
-    if (mouse.pocket > 0){ const p = pocketPos(); ctx.fillStyle = "rgba(90,60,30,.35)"; ctx.beginPath(); ctx.arc(p.x-camX, p.y, 16+mouse.pocket*20, 0, 6.3); ctx.fill(); }
+    const ang = Math.atan2(tip.y - base.y, tip.x - base.x);
+    ctx.save(); ctx.translate(mouse.x-camX, mouse.y + bob);
+    if (side > 0) ctx.drawImage(img, 0, 0, iw*0.78, ih, -s.w/2, -s.h, s.w*0.78, s.h);
+    else ctx.drawImage(img, iw*0.22, 0, iw*0.78, ih, -s.w/2 + s.w*0.22, -s.h, s.w*0.78, s.h);
+    ctx.save();
+    ctx.translate(side * s.w * 0.28, -s.h * 0.34);
+    ctx.rotate(ang - (side > 0 ? 0.8 : 2.3));
+    if (side > 0) ctx.drawImage(img, iw*0.62, ih*0.42, iw*0.38, ih*0.38, 0, -s.h*0.08, s.w*0.38, s.h*0.38);
+    else ctx.drawImage(img, 0, ih*0.28, iw*0.36, ih*0.4, -s.w*0.36, -s.h*0.08, s.w*0.36, s.h*0.4);
+    ctx.restore(); ctx.restore();
   }
-  function cloud(x, y, s){
-    ctx.fillStyle = "#fff"; ctx.beginPath();
-    ctx.ellipse(x, y, 34*s, 16*s, 0, 0, 6.3); ctx.ellipse(x-22*s, y+4*s, 22*s, 14*s, 0, 0, 6.3);
-    ctx.ellipse(x+24*s, y+6*s, 26*s, 15*s, 0, 0, 6.3); ctx.ellipse(x+4*s, y-10*s, 20*s, 14*s, 0, 0, 6.3); ctx.fill();
-  }
-  function palm(x){
-    const y = GROUND - 6; ctx.strokeStyle = "#8a5a28"; ctx.lineWidth = 7; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x+8, y-40, x-2, y-78); ctx.stroke();
-    ctx.fillStyle = "#2f9a3a";
-    [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx, dy], i) => { ctx.beginPath(); ctx.ellipse(x+dx, y-78+dy, 22, 8, (i-2)*0.45, 0, 6.3); ctx.fill(); });
-  }
-  function goldCoin(c){
-    const x = c.x - camX, y = c.y, r = c.r;
-    const g = ctx.createRadialGradient(x-r*0.35, y-r*0.4, r*0.2, x, y, r);
-    g.addColorStop(0, "#fff1a8"); g.addColorStop(0.45, "#ffc62b"); g.addColorStop(1, "#d48900");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
-    ctx.strokeStyle = "#b87400"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = "#fff8d2"; ctx.font = "900 " + Math.max(8, r) + "px Trebuchet MS"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("?", x, y+0.5);
-  }
+  function cloud(x, y, s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
+  function palm(x){ const y=GROUND-6; ctx.strokeStyle="#8a5a28"; ctx.lineWidth=7; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+8,y-40,x-2,y-78); ctx.stroke(); ctx.fillStyle="#2f9a3a"; [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx,dy],i)=>{ ctx.beginPath(); ctx.ellipse(x+dx,y-78+dy,22,8,(i-2)*0.45,0,6.3); ctx.fill(); }); }
+  function goldCoin(c){ const x=c.x-camX,y=c.y,r=c.r; const g=ctx.createRadialGradient(x-r*0.35,y-r*0.4,r*0.2,x,y,r); g.addColorStop(0,"#fff1a8"); g.addColorStop(0.45,"#ffc62b"); g.addColorStop(1,"#d48900"); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.3); ctx.fill(); ctx.strokeStyle="#b87400"; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle="#fff8d2"; ctx.font="900 "+Math.max(8,r)+"px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("?",x,y+0.5); }
   function draw(){
-    const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0, "#1f92f2"); g.addColorStop(0.55, "#67c6fb"); g.addColorStop(1, "#b7e6ff");
-    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-    const shift = camX * 0.15;
-    cloud(160 - (shift % 900), 78, 1.15); cloud(520 - (shift % 1100), 130, 0.85); cloud(860 - (shift % 980), 64, 1.25);
-    ctx.fillStyle = "#c46a32"; ctx.fillRect(0, GROUND, W, H-GROUND);
-    ctx.fillStyle = "#3cab45"; ctx.fillRect(0, GROUND-10, W, 12);
-    const palmShift = camX * 0.35; for (let x = 180 - (palmShift % 340); x < W + 40; x += 340) palm(x);
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#1f92f2"); g.addColorStop(0.55,"#67c6fb"); g.addColorStop(1,"#b7e6ff"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const shift=camX*0.15; cloud(160-(shift%900),78,1.15); cloud(520-(shift%1100),130,0.85); cloud(860-(shift%980),64,1.25);
+    ctx.fillStyle="#c46a32"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#3cab45"; ctx.fillRect(0,GROUND-10,W,12);
+    const palmShift=camX*0.35; for (let x=180-(palmShift%340); x<W+40; x+=340) palm(x);
     for (const c of coins){ if (c.state==="pocket" || c.x<camX-30 || c.x>camX+W+30) continue; goldCoin(c); }
     drawHero(); drawMouse();
   }
