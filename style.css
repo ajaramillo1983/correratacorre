@@ -73,13 +73,15 @@ body { display: grid; place-items: center; }
   pointer-events: auto; line-height: 1; touch-action: manipulation;
 }
 #btn-jump {
-  width: 92px; height: 62px; font-size: 13px; letter-spacing: 0; padding: 0 6px;
+  width: 108px; height: 62px; min-width: 108px; font-size: 11px; letter-spacing: 0; padding: 0 8px;
   background: linear-gradient(#ffd85a, #f2a900); color: #6a3c00;
+  overflow: hidden; white-space: nowrap; text-overflow: clip;
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
 }
 #btn-mute { position: absolute; top: -50px; right: 12px; width: 46px; height: 46px; font-size: 18px; }
 @media (max-width: 700px), (orientation: portrait) {
   .popup-card { width: min(420px, 94%); padding: 14px; gap: 8px; }
   .lead, .mission, .how { font-size: 14px; }
-  #btn-jump { width: 84px; height: 56px; font-size: 12px; }
+  #btn-jump { width: 96px; min-width: 96px; height: 56px; font-size: 10px; padding: 0 6px; }
   .pick img { height: 120px; }
 }
