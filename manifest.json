@@ -1,0 +1,11 @@
+{
+  "name": "Corre Rata Corre",
+  "short_name": "Corre Rata",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#071a37",
+  "theme_color": "#1f74d9",
+  "icons": [
+    { "src": "images/hero1.png", "sizes": "510x1024", "type": "image/png", "purpose": "any" }
+  ]
+}
