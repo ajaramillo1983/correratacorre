@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Corre Rata Corre</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
   <div id="game-wrap">
@@ -12,51 +13,74 @@
       <canvas id="game"></canvas>
       <div id="hud">
         <div class="hud-left">
-          <div id="hud-avatar" aria-hidden="true">★</div>
           <div class="hearts" id="hearts">❤ ❤ ❤</div>
         </div>
         <div class="hud-right">
-          <div class="pill">NIVEL 1/1</div>
-          <div class="pill gold" id="coin-hud">🪙 0/1000</div>
+          <div class="pill" id="level-hud">NIVEL 1/5</div>
+          <div class="pill gold" id="coin-hud">🪙 0</div>
+          <button id="btn-restart" class="pill restart" type="button">Reiniciar</button>
         </div>
       </div>
-      <div id="hint" style="display:none">Salta 5 veces sobre la cabeza</div>
+      <div id="hint" style="display:none">Salta 5 veces en la cabeza</div>
       <div id="popup" class="popup show">
         <div class="popup-card">
-          <div class="banner">¡DEFIENDE SANTO DOMINGO!</div>
-          <p class="lead">Una rata ladrona intenta llevarse las monedas de Santo Domingo.</p>
-          <p class="mission">Tu misión es detenerla.</p>
-          <p class="how">Persigue a la rata y salta cinco veces sobre su cabeza. Si junta 1000 monedas, gana.</p>
-          <button id="btn-start" class="btn-green">COMENZAR</button>
+          <div class="banner">¡Tu voto salva a Santo Domingo!</div>
+          <p class="lead">Dos ratas intentan llevarse la riqueza de Santo Domingo.</p>
+          <p class="mission">Tu misión es detenerlas.</p>
+          <p class="how">Persigue a las ratas y salta cinco veces en su cabeza antes de que se roben toda la riqueza de Santo Domingo.</p>
+          <button id="btn-start" class="btn-green" type="button">COMENZAR</button>
+        </div>
+      </div>
+      <div id="select" class="popup">
+        <div class="popup-card">
+          <div class="banner">Elige con quién juegas</div>
+          <p class="lead">Puedes elegir una sola.</p>
+          <div class="pick-row">
+            <button id="pick-hero1" class="pick" type="button">
+              <img src="images/hero1.png" alt="Liliana Silva" />
+              <span>Liliana Silva</span>
+            </button>
+            <button id="pick-hero2" class="pick" type="button">
+              <img src="images/hero2.png" alt="Lady Cedeño" />
+              <span>Lady Cedeño</span>
+            </button>
+          </div>
+          <button id="btn-exit" class="btn-ghost" type="button">Salir</button>
+        </div>
+      </div>
+      <div id="brief" class="popup">
+        <div class="popup-card">
+          <div class="banner" id="brief-title">Nivel</div>
+          <p class="how" id="brief-text"></p>
+          <button id="btn-brief" class="btn-green" type="button">SEGUIR</button>
         </div>
       </div>
       <div id="victory" class="popup">
         <div class="popup-card">
-          <div class="banner win">¡SANTO DOMINGO ESTÁ A SALVO!</div>
-          <p class="lead">Detuviste a la rata y recuperaste todas las monedas.</p>
-          <button id="btn-again" class="btn-green">JUGAR DE NUEVO</button>
+          <div class="banner win">¡Felicitaciones!</div>
+          <p class="how">Has salvado Santo Domingo. Recuerda: el 29 de noviembre, ni un solo voto a quienes se quieren robar Santo Domingo.</p>
+          <button id="btn-again" class="btn-green" type="button">Reiniciar juego</button>
         </div>
       </div>
       <div id="defeat" class="popup">
         <div class="popup-card">
-          <div class="banner lose">LA RATA ESCAPÓ</div>
-          <p class="lead">La rata juntó 1000 monedas y logró escapar.</p>
-          <p class="mission" id="lives-left"></p>
-          <button id="btn-retry" class="btn-green">JUGAR DE NUEVO</button>
+          <div class="banner lose">SE LLEVARON LA RIQUEZA</div>
+          <p class="lead" id="lives-left">Las ratas se robaron Santo Domingo.</p>
+          <button id="btn-retry" class="btn-green" type="button">Reiniciar juego</button>
         </div>
       </div>
       <div id="controls">
         <div class="pad">
-          <button id="btn-left" aria-label="Izquierda">←</button>
-          <button id="btn-right" aria-label="Derecha">→</button>
+          <button id="btn-left" type="button" aria-label="Izquierda">←</button>
+          <button id="btn-right" type="button" aria-label="Derecha">→</button>
         </div>
         <div class="pad pad-right">
-          <button id="btn-jump" aria-label="Saltar">SALTAR</button>
+          <button id="btn-jump" type="button" aria-label="Saltar">SALTA</button>
         </div>
-        <button id="btn-mute" aria-label="Sonido">🔊</button>
+        <button id="btn-mute" type="button" aria-label="Sonido">🔊</button>
       </div>
     </div>
   </div>
-  <script src="game.js"></script>
+  <script src="game.js?v=5"></script>
 </body>
 </html>
