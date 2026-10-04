@@ -36,7 +36,7 @@
   ];
   let state = "INTRO", last = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, camX = 0, clock = 0;
   let keys = {}, touch = { left:false, right:false, jump:false };
-  let coins = [], obstacles = [], enemies = [], nextLetterX = 520, phraseIndex = 0, heroId = 1;
+  let coins = [], obstacles = [], enemies = [], nextLetterX = 520, phraseIndex = 0, heroId = 1, quota = 1, defeated = 0;
   const imgs = { hero1:new Image(), hero2:new Image(), enemy1:new Image(), enemy2:new Image() };
   imgs.hero1.src = "images/hero1.png"; imgs.hero2.src = "images/hero2.png";
   imgs.enemy1.src = "images/enemy1.png"; imgs.enemy2.src = "images/enemy2.png";
@@ -75,6 +75,7 @@
   function makeEnemy(kind, x){ return { kind, x, y:GROUND, vx:0, vy:0, scale:1, hits:0, alive:true, onGround:true, target:null, grab:null, grabT:0 }; }
   function spawnLevel(){
     const cfg = LEVELS[level-1];
+    quota = cfg.e1 + cfg.e2; defeated = 0;
     enemies = []; let x = hero.x + 460;
     for (let i = 0; i < cfg.e1; i++) { enemies.push(makeEnemy(1, x)); x += 280; }
     for (let i = 0; i < cfg.e2; i++) { enemies.push(makeEnemy(2, x)); x += 280; }
@@ -211,17 +212,30 @@
       return;
     }
   }
+  function showVictory(){
+    state = "VICTORY";
+    hintEl.style.display = "none";
+    hideAll();
+    const box = document.getElementById("victory");
+    box.classList.add("show");
+    box.style.display = "flex";
+    box.style.zIndex = "30";
+  }
   function finishLevel(){
+    if (state === "BRIEF" || state === "VICTORY") return;
     coins.forEach(c => { c.x = c.ox; c.y = c.oy; c.stolen = false; c.state = "home"; c.owner = null; });
     stolenCount = 0;
     updateHud();
+    const done = defeated >= quota || enemies.every(en => !en.alive);
+    if (!done) return;
     if (level < 5) { level++; showBrief(level); }
-    else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
+    else showVictory();
   }
   function explode(e){
-    e.alive = false; beep(90,0.25,"sawtooth",0.1);
+    if (!e.alive) return;
+    e.alive = false; defeated++; beep(90,0.25,"sawtooth",0.1);
     coins.forEach(c => { if (c.stolen && c.owner === e) { c.state = "return"; c.delay = Math.random()*0.15; } });
-    if (enemies.length && enemies.every(en => !en.alive)) finishLevel();
+    if (defeated >= quota || enemies.every(en => !en.alive)) finishLevel();
   }
   function returnAllStolen(){
     coins.forEach(c => { if (c.stolen && c.state !== "home") { c.state = "return"; c.delay = Math.random()*0.12; } });
@@ -254,7 +268,7 @@
     });
     updateHud();
     if (stolenCount >= GOAL) { loseLife(); return; }
-    if (enemies.length && enemies.every(e => !e.alive)) finishLevel();
+    if (defeated >= quota || (enemies.length && enemies.every(e => !e.alive))) finishLevel();
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
   function drawSprite(img, x, y, height, facing){
