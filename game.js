@@ -115,7 +115,14 @@
   document.getElementById("pick-hero1").addEventListener("click", () => choose(1));
   document.getElementById("pick-hero2").addEventListener("click", () => choose(2));
   document.getElementById("btn-exit").addEventListener("click", () => { hideAll(); document.getElementById("popup").classList.add("show"); state="INTRO"; });
-  document.getElementById("btn-brief").addEventListener("click", () => { hideAll(); hintEl.style.display="block"; state="PLAYING"; });
+  document.getElementById("btn-brief").addEventListener("click", () => {
+    hideAll();
+    spawnLevel();
+    ensureSigns();
+    hintEl.style.display="block";
+    hintEl.textContent = "Nivel " + level + ": salta 5 veces en la cabeza";
+    state="PLAYING";
+  });
   document.getElementById("btn-life").addEventListener("click", () => { hideAll(); retryLevel(); hintEl.style.display="block"; state="PLAYING"; });
   document.getElementById("btn-again").addEventListener("click", restart);
   document.getElementById("btn-retry").addEventListener("click", restart);
@@ -238,11 +245,11 @@
     updateHud();
     if (stolenCount >= GOAL) { loseLife(); return; }
     if (enemies.length && enemies.every(e => !e.alive)) {
-      returnAllStolen();
-      if (coins.every(c => !c.stolen)) {
-        if (level < 5) { level++; spawnLevel(); showBrief(level); }
-        else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
-      }
+      coins.forEach(c => { c.x = c.ox; c.y = c.oy; c.stolen = false; c.state = "home"; c.owner = null; });
+      stolenCount = 0;
+      updateHud();
+      if (level < 5) { level++; showBrief(level); }
+      else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
     }
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
