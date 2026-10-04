@@ -4,8 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#1f74d9" />
+  <link rel="manifest" href="manifest.json" />
   <title>Corre Rata Corre</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div id="game-wrap">
@@ -17,7 +20,7 @@
         </div>
         <div class="hud-right">
           <div class="pill" id="level-hud">NIVEL 1/5</div>
-          <div class="pill gold" id="coin-hud">🪙 0</div>
+          <div class="pill gold" id="coin-hud">🪙 0/1000</div>
           <button id="btn-restart" class="pill restart" type="button">Reiniciar</button>
         </div>
       </div>
@@ -29,12 +32,12 @@
           <p class="mission">Tu misión es detenerlas.</p>
           <p class="how">Persigue a las ratas y salta cinco veces en su cabeza antes de que se roben toda la riqueza de Santo Domingo.</p>
           <button id="btn-start" class="btn-green" type="button">COMENZAR</button>
+          <a class="btn-download" href="juego.zip" download>Descarga el juego</a>
         </div>
       </div>
       <div id="select" class="popup">
         <div class="popup-card">
           <div class="banner">Elige con quién juegas</div>
-          <p class="lead">Puedes elegir una sola.</p>
           <div class="pick-row">
             <button id="pick-hero1" class="pick" type="button">
               <img src="images/hero1.png" alt="Liliana Silva" />
@@ -55,17 +58,24 @@
           <button id="btn-brief" class="btn-green" type="button">SEGUIR</button>
         </div>
       </div>
+      <div id="life" class="popup">
+        <div class="popup-card">
+          <div class="banner lose">Te quedan vidas</div>
+          <p class="how" id="life-text"></p>
+          <button id="btn-life" class="btn-green" type="button">VOLVER A INTENTAR</button>
+        </div>
+      </div>
       <div id="victory" class="popup">
         <div class="popup-card">
-          <div class="banner win">¡Felicitaciones!</div>
-          <p class="how">Has salvado Santo Domingo. Recuerda: el 29 de noviembre, ni un solo voto a quienes se quieren robar Santo Domingo.</p>
+          <img class="win-art" src="images/victoria.png" alt="Recuperemos Santo Domingo con alegría" />
+          <a class="btn-download" href="juego.zip" download>Descarga el juego</a>
           <button id="btn-again" class="btn-green" type="button">Reiniciar juego</button>
         </div>
       </div>
       <div id="defeat" class="popup">
         <div class="popup-card">
-          <div class="banner lose">SE LLEVARON LA RIQUEZA</div>
-          <p class="lead" id="lives-left">Las ratas se robaron Santo Domingo.</p>
+          <div class="banner lose">Has perdido en el mundo online</div>
+          <p class="how">Has perdido en el mundo online, pero en el offline todavía puedes ganar el 29 de noviembre negándole el voto a quienes se quieren robar Santo Domingo.</p>
           <button id="btn-retry" class="btn-green" type="button">Reiniciar juego</button>
         </div>
       </div>
@@ -81,6 +91,11 @@
       </div>
     </div>
   </div>
-  <script src="game.js?v=5"></script>
+  <script src="game.js?v=6"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  </script>
 </body>
 </html>
