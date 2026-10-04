@@ -3,158 +3,340 @@
   const ctx = canvas.getContext("2d");
   const hintEl = document.getElementById("hint");
   let W = 1400, H = 780, GROUND = 640, portrait = false, level = 1;
-  const GRAVITY = 2200, JUMP_V = -1560, GOAL = 1000;
+  const GRAVITY = 2200, JUMP_V = -1560;
   const HERO_ACC = 2600, HERO_FRI = 2000, HERO_MAX = 460;
-  const STATES = { INTRO:"INTRO", PLAYING:"PLAYING", FINAL_HIT:"FINAL_HIT", COIN_EXPLOSION:"COIN_EXPLOSION", COIN_RETURN:"COIN_RETURN", VICTORY:"VICTORY", DEFEAT:"DEFEAT" };
-  const FONT = { S:["01110","10001","10000","01110","00001","10001","01110"], A:["01110","10001","10001","11111","10001","10001","10001"], N:["10001","11001","10101","10011","10001","10001","10001"], T:["11111","00100","00100","00100","00100","00100","00100"], O:["01110","10001","10001","10001","10001","10001","01110"], D:["11110","10001","10001","10001","10001","10001","11110"], M:["10001","11011","10101","10101","10001","10001","10001"], I:["11111","00100","00100","00100","00100","00100","11111"], G:["01110","10001","10000","10111","10001","10001","01110"] };
-  const PHRASE = "SANTO DOMINGO";
-  let state = STATES.INTRO, last = 0, hits = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, stunT = 0, sequenceT = 0, camX = 0, clock = 0;
-  let keys = {}, touch = { left:false, right:false, jump:false }, coins = [], nextLetterX = 480, phraseIndex = 0;
-  function load(src){ const img = new Image(); img.src = src; return img; }
-  const frames = {
-    hero: { idle: load("images/hero.png"), walk: load("images/hero-walk.png"), jump: load("images/hero-jump.png"), fall: load("images/hero-fall.png") },
-    yadira: { idle: load("images/yadira.png"), walk: load("images/yadira-walk.png"), grab: load("images/yadira-grab.png"), pocket: load("images/yadira-pocket.png") },
-    wilson: { idle: load("images/wilson.png"), walk: load("images/wilson-walk.png"), grab: load("images/wilson-grab.png"), pocket: load("images/wilson-pocket.png") }
+  const FONT = {
+    S:["01110","10001","10000","01110","00001","10001","01110"],
+    A:["01110","10001","10001","11111","10001","10001","10001"],
+    N:["10001","11001","10101","10011","10001","10001","10001"],
+    T:["11111","00100","00100","00100","00100","00100","00100"],
+    O:["01110","10001","10001","10001","10001","10001","01110"],
+    D:["11110","10001","10001","10001","10001","10001","11110"],
+    M:["10001","11011","10101","10101","10001","10001","10001"],
+    I:["11111","00100","00100","00100","00100","00100","11111"],
+    G:["01110","10001","10000","10111","10001","10001","01110"]
   };
-  const heroImg = frames.hero.idle, yadiraImg = frames.yadira.idle, wilsonImg = frames.wilson.idle;
-  const hero = { x:200, y:640, vx:0, vy:0, w:86, h:190, facing:1, onGround:true };
-  const mouse = { x:560, y:640, vx:0, vy:0, w:220, h:420, scale:1, speed:210, target:null, alive:true, onGround:true, grab:null, grabT:0, pose:"idle" };
-  function enemyKey(){ return level === 1 ? "yadira" : "wilson"; }
-  function enemyImg(){ return frames[enemyKey()].idle; }
-  function enemyName(){ return level === 1 ? "Yadira" : "Wilson"; }
+  const PHRASE = "SANTO DOMINGO";
+  const BRIEFS = {
+    2: "¡Genial! No permitiste que se roben Santo Domingo, pero espera... Wilson ha llamado a su candidata Yadira, para que lo ayude. ¡No lo permitas! Las obras que hace hoy, te las cobrarán mañana con muchos intereses.",
+    3: "¡No puede ser! El Gobierno ha enviado recursos y Wilson y su candidata se han multiplicado, no permitas que se roben Santo Domingo.",
+    4: "Vaya, vaya... Henry Ayala ha conseguido más maquinaria para convencer a los votantes y ha multiplicado a Wilson y Yadira. Evita que se lleven más dinero para incrementar su patrimonio.",
+    5: "El día de las elecciones está a punto de llegar y personajes oscuros han colocado más dinero en la campaña de Wilson y Yadira. ¡Se multiplicaron! Persíguelos y salta cinco veces en su cabeza para ganar."
+  };
+  const LEVELS = [
+    { e1:1, e2:0, speed:170 },
+    { e1:0, e2:1, speed:220 },
+    { e1:1, e2:1, speed:270 },
+    { e1:2, e2:2, speed:320 },
+    { e1:3, e2:3, speed:380 }
+  ];
+  let state = "INTRO", last = 0, stolenCount = 0, totalPieces = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, camX = 0, clock = 0;
+  let keys = {}, touch = { left:false, right:false, jump:false };
+  let coins = [], obstacles = [], enemies = [], nextLetterX = 520, phraseIndex = 0, heroId = 1;
+  const imgs = {
+    hero1: new Image(), hero2: new Image(), enemy1: new Image(), enemy2: new Image()
+  };
+  imgs.hero1.src = "images/hero1.png";
+  imgs.hero2.src = "images/hero2.png";
+  imgs.enemy1.src = "images/enemy1.png";
+  imgs.enemy2.src = "images/enemy2.png";
+  const hero = { x:180, y:640, vx:0, vy:0, w:80, h:168, facing:1, onGround:true, scale:1 };
   function ready(img){ return img && img.complete && img.naturalWidth; }
-  function pose(set, name){ return ready(set[name]) ? set[name] : set.idle; }
-  function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.7; }
-  function sizeFromHeight(img, height){ return { h: height, w: height * aspect(img) }; }
+  function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.55; }
+  function heroImg(){ return heroId === 2 ? imgs.hero2 : imgs.hero1; }
+  function heroName(){ return heroId === 2 ? "Lady Cedeño" : "Liliana Silva"; }
   function applyLayoutSize(){
     portrait = window.innerWidth < 820 || window.innerHeight > window.innerWidth;
-    W = portrait ? 780 : 1400; H = portrait ? 1280 : 780; GROUND = portrait ? 1080 : 640;
+    W = portrait ? 780 : 1400;
+    H = portrait ? 1280 : 780;
+    GROUND = portrait ? 1040 : 620;
     canvas.width = W; canvas.height = H;
-    hero.h = portrait ? 210 : 190; hero.w = hero.h * aspect(heroImg);
-    mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg());
+    hero.h = portrait ? 168 : 176;
     const wrap = document.getElementById("game-wrap"), stage = document.getElementById("stage");
-    const r = wrap.getBoundingClientRect(), scale = Math.min(r.width / W, r.height / H);
-    canvas.style.width = Math.floor(W * scale) + "px"; canvas.style.height = Math.floor(H * scale) + "px";
+    const r = wrap.getBoundingClientRect();
+    const scale = Math.min(r.width / W, r.height / H);
+    canvas.style.width = Math.floor(W * scale) + "px";
+    canvas.style.height = Math.floor(H * scale) + "px";
     if (stage) { stage.style.width = canvas.style.width; stage.style.height = canvas.style.height; }
   }
+  function sizeOf(img, height){ return { h: height, w: height * aspect(img) }; }
   function spawnLetter(ch, x, high){
     const grid = FONT[ch]; if (!grid) return;
-    const cell = portrait ? 20 : 18;
-    const top = high ? GROUND - (portrait ? 470 : 420) : GROUND - (portrait ? 290 : 255);
-    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", r: portrait ? 10 : 9.5, flyVx:0, flyVy:0, delay:0 });
+    const cell = portrait ? 22 : 20;
+    const top = high ? GROUND - (portrait ? 500 : 430) : GROUND - (portrait ? 300 : 250);
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") {
+      coins.push({
+        x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell,
+        stolen:false, state:"home", kind: (r+c) % 3 === 0 ? "bill" : "coin",
+        r: portrait ? 11 : 12, owner:null, flyVx:0, flyVy:0, delay:0
+      });
+      totalPieces++;
+    }
   }
-  function ensureSigns(){ while (nextLetterX < camX + W + 760) { const i = phraseIndex % PHRASE.length; const ch = PHRASE[i]; if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5); nextLetterX += ch === " " ? 90 : 150; phraseIndex++; } }
-  function placeEnemy(){ mouse.h = hero.h * 2.15; mouse.w = mouse.h * aspect(enemyImg()); mouse.scale = 1; mouse.alive = true; mouse.x = hero.x + 380; mouse.y = GROUND; mouse.vx = 0; mouse.vy = 0; mouse.grab = null; mouse.grabT = 0; mouse.pose = "idle"; }
-  function resetWorld(){ hits = 0; stolenCount = 0; lives = 3; level = 1; camX = 0; coins = []; nextLetterX = 480; phraseIndex = 0; hero.x = 200; hero.y = GROUND; hero.vx = 0; hero.vy = 0; placeEnemy(); ensureSigns(); updateHud(); }
+  function ensureSigns(){
+    while (nextLetterX < camX + W + 820) {
+      const i = phraseIndex % PHRASE.length;
+      const ch = PHRASE[i];
+      if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5);
+      nextLetterX += ch === " " ? 100 : 168;
+      phraseIndex++;
+    }
+  }
+  function makeEnemy(kind, x){
+    return { kind, x, y:GROUND, vx:0, vy:0, scale:1, hits:0, alive:true, onGround:true, target:null, grab:null, grabT:0 };
+  }
+  function spawnLevel(){
+    const cfg = LEVELS[level-1];
+    enemies = [];
+    let x = hero.x + 420;
+    for (let i = 0; i < cfg.e1; i++) { enemies.push(makeEnemy(1, x)); x += 260; }
+    for (let i = 0; i < cfg.e2; i++) { enemies.push(makeEnemy(2, x)); x += 260; }
+    obstacles = [];
+    if (level === 3) {
+      for (let i = 0; i < 8; i++) obstacles.push({ type:"mud", x:900+i*520, w:120, h:18 });
+    }
+    if (level === 4) {
+      for (let i = 0; i < 6; i++) {
+        obstacles.push({ type: i % 2 ? "car" : "house", x:860+i*640, w: i % 2 ? 130 : 150, h: i % 2 ? 54 : 110 });
+      }
+    }
+    if (level === 5) {
+      for (let i = 0; i < 7; i++) obstacles.push({ type:"oncoming", x:1100+i*700, w:140, h:58, vx:-260 });
+    }
+  }
+  function resetWorld(){
+    level = 1; stolenCount = 0; totalPieces = 0; lives = 3; camX = 0;
+    coins = []; obstacles = []; nextLetterX = 520; phraseIndex = 0;
+    hero.x = 180; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.scale = 1; hero.onGround = true;
+    spawnLevel(); ensureSigns(); updateHud();
+  }
   window.addEventListener("resize", applyLayoutSize);
-  heroImg.onload = yadiraImg.onload = wilsonImg.onload = applyLayoutSize;
+  imgs.hero1.onload = imgs.hero2.onload = applyLayoutSize;
   applyLayoutSize(); resetWorld();
   function ensureAudio(){ if (!audioReady) { ac = new (window.AudioContext||window.webkitAudioContext)(); audioReady = true; } }
   function beep(f,d,t,v){ if (muted||!ac) return; const o=ac.createOscillator(), g=ac.createGain(); o.type=t||"square"; o.frequency.value=f; g.gain.value=v||0.06; g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+d); o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+d); }
   window.addEventListener("keydown", e => { keys[e.code]=true; if(["ArrowLeft","ArrowRight","ArrowUp","Space"].includes(e.code)) e.preventDefault(); });
   window.addEventListener("keyup", e => { keys[e.code]=false; });
-  function bindHold(el, prop){ const on=ev=>{ev.preventDefault(); touch[prop]=true;}; const off=ev=>{ev.preventDefault(); touch[prop]=false;}; el.addEventListener("pointerdown", on); el.addEventListener("pointerup", off); el.addEventListener("pointerleave", off); }
-  bindHold(document.getElementById("btn-left"), "left"); bindHold(document.getElementById("btn-right"), "right"); bindHold(document.getElementById("btn-jump"), "jump");
-  document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "\ud83d\udd07" : "\ud83d\udd0a"; });
-  document.getElementById("btn-start").addEventListener("click", startGame);
-  document.getElementById("btn-again").addEventListener("click", resetGame);
-  document.getElementById("btn-retry").addEventListener("click", resetGame);
-  function startGame(){ ensureAudio(); document.getElementById("popup").classList.remove("show"); hintEl.style.display="block"; hintEl.textContent="Nivel 1: salta 5 veces sobre Yadira"; state=STATES.PLAYING; }
-  function resetGame(){ document.getElementById("victory").classList.remove("show"); document.getElementById("defeat").classList.remove("show"); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent="Nivel 1: salta 5 veces sobre Yadira"; state=STATES.PLAYING; }
-  function updateHud(){ document.getElementById("coin-hud").textContent = "\ud83e\ude99 " + stolenCount + "/" + GOAL; document.getElementById("hearts").textContent = "\u2764 ".repeat(lives).trim(); }
-  function drawnMouse(){ return sizeFromHeight(enemyImg(), mouse.h * mouse.scale); }
-  function reachY(){ return mouse.y - drawnMouse().h * 0.42; }
-  function handPos(){ const s = drawnMouse(); return { x: mouse.x + s.w * 0.28, y: mouse.y - s.h * (mouse.pose === "pocket" ? 0.38 : 0.55) }; }
-  function nearestAhead(){ let best=null, bestD=1e9; for (const c of coins){ if (c.stolen||c.state!=="home"||c.x<mouse.x-20) continue; const d=c.x-mouse.x+Math.abs(c.y-reachY())*0.25; if (d<bestD){ bestD=d; best=c; } } return best; }
-  function applyGravity(b, dt){ b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt; if (b.y>=GROUND){ b.y=GROUND; b.vy=0; b.onGround=true; } else b.onGround=false; }
+  function bindHold(el, prop){ const on=ev=>{ev.preventDefault(); touch[prop]=true;}; const off=ev=>{ev.preventDefault(); touch[prop]=false;}; el.addEventListener("pointerdown", on); el.addEventListener("pointerup", off); el.addEventListener("pointercancel", off); el.addEventListener("pointerleave", off); }
+  bindHold(document.getElementById("btn-left"), "left");
+  bindHold(document.getElementById("btn-right"), "right");
+  bindHold(document.getElementById("btn-jump"), "jump");
+  document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "🔇" : "🔊"; });
+  document.getElementById("btn-start").addEventListener("click", () => { ensureAudio(); hideAll(); document.getElementById("select").classList.add("show"); });
+  document.getElementById("pick-hero1").addEventListener("click", () => choose(1));
+  document.getElementById("pick-hero2").addEventListener("click", () => choose(2));
+  document.getElementById("btn-exit").addEventListener("click", () => { hideAll(); document.getElementById("popup").classList.add("show"); state="INTRO"; });
+  document.getElementById("btn-brief").addEventListener("click", () => { hideAll(); hintEl.style.display="block"; state="PLAYING"; });
+  document.getElementById("btn-again").addEventListener("click", restart);
+  document.getElementById("btn-retry").addEventListener("click", restart);
+  document.getElementById("btn-restart").addEventListener("click", restart);
+  function hideAll(){ ["popup","select","brief","victory","defeat"].forEach(id => document.getElementById(id).classList.remove("show")); }
+  function choose(id){ heroId = id; ensureAudio(); hideAll(); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent = "Nivel 1: salta 5 veces en la cabeza"; state="PLAYING"; }
+  function restart(){ hideAll(); document.getElementById("select").classList.add("show"); hintEl.style.display="none"; state="SELECT"; }
+  function showBrief(n){
+    hideAll();
+    document.getElementById("brief-title").textContent = "Nivel " + n;
+    document.getElementById("brief-text").textContent = BRIEFS[n];
+    document.getElementById("brief").classList.add("show");
+    hintEl.style.display = "none";
+    state = "BRIEF";
+  }
+  function updateHud(){
+    document.getElementById("coin-hud").textContent = "🪙 " + stolenCount;
+    document.getElementById("level-hud").textContent = "NIVEL " + level + "/5";
+    document.getElementById("hearts").textContent = "❤ ".repeat(lives).trim();
+  }
+  function enemyImg(e){ return e.kind === 2 ? imgs.enemy2 : imgs.enemy1; }
+  function enemyHeight(e){ return hero.h * 1.85 * e.scale; }
+  function reachY(e){ return e.y - enemyHeight(e) * 0.42; }
+  function nearest(e){
+    let best=null, bestD=1e9;
+    for (const c of coins){
+      if (c.stolen || c.state!=="home" || c.x < e.x-20) continue;
+      const d = c.x - e.x + Math.abs(c.y - reachY(e)) * 0.3;
+      if (d < bestD){ bestD=d; best=c; }
+    }
+    return best;
+  }
+  function applyGravity(b, dt){
+    b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt;
+    if (b.y >= GROUND){ b.y = GROUND; b.vy = 0; b.onGround = true; }
+    else b.onGround = false;
+  }
   function updateHero(dt){
     const left = keys.ArrowLeft||keys.KeyA||touch.left, right = keys.ArrowRight||keys.KeyD||touch.right, jump = keys.ArrowUp||keys.Space||keys.KeyW||touch.jump;
-    if (right && !left){ hero.vx += HERO_ACC*dt; hero.facing=1; } else if (left && !right){ hero.vx -= HERO_ACC*dt; hero.facing=-1; }
+    if (right && !left){ hero.vx += HERO_ACC*dt; hero.facing=1; }
+    else if (left && !right){ hero.vx -= HERO_ACC*dt; hero.facing=-1; }
     else hero.vx += (hero.vx>0?-1:1)*Math.min(Math.abs(hero.vx), HERO_FRI*dt);
     hero.vx = Math.max(-HERO_MAX, Math.min(HERO_MAX, hero.vx));
     if (jump && hero.onGround){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); }
     applyGravity(hero, dt);
-    if (hero.x < camX+30){ hero.x = camX+30; hero.vx = Math.max(0, hero.vx); }
+    if (hero.x < camX+36){ hero.x = camX+36; hero.vx = Math.max(0, hero.vx); }
+    const hh = hero.h * hero.scale;
+    if (hh > H * 0.42) hero.scale = (H * 0.42) / hero.h;
   }
-  function updateMouse(dt){
-    if (mouse.grab){
-      mouse.grabT += dt;
-      mouse.pose = mouse.grabT < 0.34 ? "grab" : "pocket";
-      const hand = handPos();
-      mouse.grab.x += (hand.x - mouse.grab.x) * Math.min(1, dt * 8);
-      mouse.grab.y += (hand.y - mouse.grab.y) * Math.min(1, dt * 8);
-      mouse.grab.state = "grab";
-      if (mouse.grabT > 0.62){ mouse.grab.stolen = true; mouse.grab.state = "pocket"; stolenCount++; mouse.grab = null; mouse.pose = "idle"; beep(300,0.1,"square",0.05); updateHud(); }
-      mouse.vx = 20; applyGravity(mouse, dt); return;
+  function updateEnemy(e, dt){
+    const speed = LEVELS[level-1].speed;
+    if (!e.alive) return;
+    if (e.grab){
+      e.grabT += dt;
+      const hand = { x: e.x + enemyHeight(e)*0.22, y: e.y - enemyHeight(e)*(e.grabT<0.3?0.5:0.36) };
+      e.grab.x += (hand.x - e.grab.x) * Math.min(1, dt*8);
+      e.grab.y += (hand.y - e.grab.y) * Math.min(1, dt*8);
+      if (e.grabT > 0.55){ e.grab.stolen = true; e.grab.state = "pocket"; e.grab.owner = e; stolenCount++; e.grab = null; beep(300,0.08,"square",0.04); updateHud(); }
+      e.vx = 16; applyGravity(e, dt); return;
     }
-    mouse.pose = Math.abs(mouse.vx) > 40 && mouse.onGround ? "walk" : "idle";
-    if (!mouse.target || mouse.target.stolen) mouse.target = nearestAhead();
-    mouse.vx = mouse.speed;
-    if (mouse.target && mouse.target.x - mouse.x < 48){
-      if (mouse.target.y < reachY()-20 && mouse.onGround) mouse.vy = JUMP_V;
-      if (Math.abs(mouse.target.y - reachY()) < 56){ mouse.grab = mouse.target; mouse.grabT = 0; mouse.pose = "grab"; mouse.vx = 0; }
+    if (!e.target || e.target.stolen) e.target = nearest(e);
+    e.vx = speed;
+    if (e.target && e.target.x - e.x < 50){
+      if (e.target.y < reachY(e)-24 && e.onGround) e.vy = JUMP_V;
+      if (Math.abs(e.target.y - reachY(e)) < 60){ e.grab = e.target; e.grabT = 0; e.vx = 0; }
     }
-    applyGravity(mouse, dt);
+    applyGravity(e, dt);
   }
   function checkStomp(){
-    if (!mouse.alive || hitLock>0 || hero.onGround || hero.vy<=40) return;
-    const s = drawnMouse();
-    const head = { x:mouse.x-s.w*0.22, y:mouse.y-s.h, w:s.w*0.44, h:s.h*0.24 };
-    const feet = { x:hero.x-18, y:hero.y-16, w:36, h:18 };
-    if (!(feet.x < head.x+head.w && feet.x+feet.w > head.x && feet.y < head.y+head.h && feet.y+feet.h > head.y)) return;
-    hits++; hitLock = 0.45; stunT = 0.25; hero.vy = JUMP_V*0.55; beep(180,0.14,"square",0.1);
-    if (hits < 5){ mouse.scale = 1 - hits*0.14; hintEl.textContent = "Golpe "+hits+"/5 sobre "+enemyName(); }
-    else { state = STATES.FINAL_HIT; sequenceT = 0; hintEl.textContent = enemyName()+" desaparece"; beep(90,0.3,"sawtooth",0.12); }
+    if (hitLock>0 || hero.onGround || hero.vy<=40) return;
+    const feet = { x:hero.x-20, y:hero.y-18, w:40, h:20 };
+    for (const e of enemies){
+      if (!e.alive) continue;
+      const h = enemyHeight(e);
+      const img = enemyImg(e);
+      const w = h * aspect(img);
+      const head = { x:e.x-w*0.22, y:e.y-h, w:w*0.44, h:h*0.22 };
+      if (!(feet.x < head.x+head.w && feet.x+feet.w > head.x && feet.y < head.y+head.h && feet.y+feet.h > head.y)) continue;
+      e.hits++; hitLock = 0.4; hero.vy = JUMP_V*0.55; hero.scale = Math.min(1.45, hero.scale + 0.07); beep(180,0.12,"square",0.1);
+      if (e.hits < 5) e.scale = Math.max(0.42, 1 - e.hits*0.14);
+      else explode(e);
+      hintEl.textContent = "Golpe " + e.hits + "/5";
+      return;
+    }
   }
-  function explodeMouse(){ mouse.alive = false; coins.forEach(c => { if (!c.stolen) return; c.state="fly"; c.x=mouse.x; c.y=mouse.y-80; c.flyVx=(Math.random()-0.3)*400; c.flyVy=-220-Math.random()*200; }); }
-  function update(dt){
-    if (dt>0.05) dt=0.05; clock += dt; hitLock=Math.max(0,hitLock-dt); stunT=Math.max(0,stunT-dt);
-    if (state===STATES.INTRO || state===STATES.DEFEAT || state===STATES.VICTORY) return;
-    if (state===STATES.PLAYING){ updateHero(dt); if (stunT<=0 && mouse.alive) updateMouse(dt); else applyGravity(mouse,dt); checkStomp(); ensureSigns(); if (stolenCount>=GOAL){ state=STATES.DEFEAT; hintEl.style.display="none"; document.getElementById("lives-left").textContent = enemyName()+" lleg\u00f3 a 1000 monedas."; document.getElementById("defeat").classList.add("show"); } }
-    if (state===STATES.FINAL_HIT){ sequenceT+=dt; if (sequenceT>0.25){ explodeMouse(); state=STATES.COIN_EXPLOSION; sequenceT=0; } }
-    if (state===STATES.COIN_EXPLOSION){ sequenceT+=dt; coins.forEach(c=>{ if(c.state!=="fly")return; c.flyVy+=900*dt; c.x+=c.flyVx*dt; c.y+=c.flyVy*dt; if(c.y>GROUND-8){c.y=GROUND-8; c.flyVy*=-0.4;} }); if (sequenceT>1){ state=STATES.COIN_RETURN; coins.forEach((c,i)=>{ if(c.stolen){ c.state="return"; c.delay=(i%8)*0.02; } }); } }
-    if (state===STATES.COIN_RETURN){
-      coins.forEach(c=>{ if(c.state!=="return")return; if(c.delay>0){c.delay-=dt;return;} c.x+=(c.ox-c.x)*Math.min(1,dt*3); c.y+=(c.oy-c.y)*Math.min(1,dt*3); if(Math.hypot(c.ox-c.x,c.oy-c.y)<6){ c.x=c.ox; c.y=c.oy; c.stolen=false; c.state="home"; stolenCount=Math.max(0,stolenCount-1);} });
-      updateHud();
-      if (coins.every(c=>!c.stolen)){
-        if (level===1){ level=2; hits=0; stolenCount=0; placeEnemy(); mouse.x=hero.x+400; state=STATES.PLAYING; hintEl.textContent="Nivel 2: salta 5 veces sobre Wilson"; updateHud(); }
-        else { state=STATES.VICTORY; hintEl.style.display="none"; setTimeout(()=>document.getElementById("victory").classList.add("show"), 400); }
+  function explode(e){
+    e.alive = false; beep(90,0.25,"sawtooth",0.1);
+    coins.forEach(c => {
+      if (c.owner !== e && c.stolen) return;
+      if (!c.stolen) return;
+      c.state = "return"; c.delay = Math.random()*0.2;
+    });
+  }
+  function hitObstacle(dt){
+    const feet = hero.y > GROUND-28;
+    for (const o of obstacles){
+      if (o.type === "oncoming"){
+        o.x += o.vx * dt;
+        if (o.x < camX - 200) o.x = camX + W + 200 + Math.random()*300;
+        if (feet && hero.x > o.x && hero.x < o.x+o.w && hero.y > GROUND-o.h){
+          hero.x = camX + 40; hero.vx = 0; beep(90,0.15,"square",0.08);
+        }
+      } else if (feet && hero.x > o.x && hero.x < o.x+o.w){
+        if (o.type === "mud") hero.vx *= 0.9;
+        else { hero.x = o.x - 8; hero.vx = 0; }
       }
+    }
+  }
+  function levelClear(){
+    return enemies.length && enemies.every(e => !e.alive) && coins.every(c => !c.stolen || c.state==="home");
+  }
+  function update(dt){
+    if (dt>0.05) dt=0.05; clock += dt; hitLock = Math.max(0, hitLock-dt);
+    if (state!=="PLAYING") return;
+    updateHero(dt);
+    enemies.forEach(e => updateEnemy(e, dt));
+    checkStomp();
+    hitObstacle(dt);
+    ensureSigns();
+    coins.forEach(c => {
+      if (c.state!=="return") return;
+      if (c.delay>0){ c.delay -= dt; return; }
+      c.x += (c.ox-c.x)*Math.min(1, dt*3.2);
+      c.y += (c.oy-c.y)*Math.min(1, dt*3.2);
+      if (Math.hypot(c.ox-c.x, c.oy-c.y)<6){ c.x=c.ox; c.y=c.oy; c.stolen=false; c.state="home"; c.owner=null; stolenCount=Math.max(0, stolenCount-1); }
+    });
+    updateHud();
+    if (totalPieces && stolenCount >= Math.max(40, Math.floor(totalPieces*0.55))){
+      state = "DEFEAT"; hintEl.style.display="none";
+      document.getElementById("lives-left").textContent = "Se robaron la riqueza de Santo Domingo.";
+      document.getElementById("defeat").classList.add("show");
+      return;
+    }
+    if (levelClear()){
+      if (level < 5){ level++; spawnLevel(); showBrief(level); }
+      else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
     }
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
   function drawSprite(img, x, y, height, facing){
-    if (!ready(img)) return { w:0, h:0 };
-    const s = sizeFromHeight(img, height);
+    if (!ready(img)) return {w:0,h:0};
+    const s = sizeOf(img, height);
     ctx.save(); ctx.translate(x-camX, y); if (facing<0) ctx.scale(-1,1);
     ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h);
     ctx.restore();
     return s;
   }
-  function heroFrame(){
-    if (!hero.onGround && hero.vy < 0) return pose(frames.hero, "jump");
-    if (!hero.onGround && hero.vy > 40) return pose(frames.hero, "fall");
-    if (hero.onGround && Math.abs(hero.vx) > 40 && Math.floor(clock * 6) % 2 === 0) return pose(frames.hero, "walk");
-    return frames.hero.idle;
-  }
-  function mouseFrame(){
-    const set = frames[enemyKey()];
-    if (mouse.pose === "grab") return pose(set, "grab");
-    if (mouse.pose === "pocket") return pose(set, "pocket");
-    if (mouse.pose === "walk" && Math.floor(clock * 6) % 2 === 0) return pose(set, "walk");
-    return set.idle;
-  }
-  function cloud(x, y, s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
+  function cloud(x,y,s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
   function palm(x){ const y=GROUND-6; ctx.strokeStyle="#8a5a28"; ctx.lineWidth=7; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+8,y-40,x-2,y-78); ctx.stroke(); ctx.fillStyle="#2f9a3a"; [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx,dy],i)=>{ ctx.beginPath(); ctx.ellipse(x+dx,y-78+dy,22,8,(i-2)*0.45,0,6.3); ctx.fill(); }); }
-  function goldCoin(c){ const x=c.x-camX,y=c.y,r=c.r; const g=ctx.createRadialGradient(x-r*0.35,y-r*0.4,r*0.2,x,y,r); g.addColorStop(0,"#fff1a8"); g.addColorStop(0.45,"#ffc62b"); g.addColorStop(1,"#d48900"); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.3); ctx.fill(); ctx.strokeStyle="#b87400"; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle="#fff8d2"; ctx.font="900 "+Math.max(8,r)+"px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("?",x,y+0.5); }
-  function draw(){
-    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#1f92f2"); g.addColorStop(0.55,"#67c6fb"); g.addColorStop(1,"#b7e6ff"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    const shift=camX*0.15; cloud(160-(shift%900),78,1.15); cloud(520-(shift%1100),130,0.85); cloud(860-(shift%980),64,1.25);
+  function money(c){
+    const x=c.x-camX, y=c.y;
+    if (c.kind==="bill"){
+      ctx.save(); ctx.translate(x,y); ctx.rotate(-0.15);
+      ctx.fillStyle="#1f8a45"; ctx.fillRect(-16,-9,32,18);
+      ctx.strokeStyle="#b6f3c8"; ctx.strokeRect(-16,-9,32,18);
+      ctx.fillStyle="#e9ffe9"; ctx.font="900 11px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("$",0,1);
+      ctx.restore();
+      return;
+    }
+    const r=c.r;
+    const g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
+    g.addColorStop(0,"#fff6c2"); g.addColorStop(0.45,"#ffc62b"); g.addColorStop(1,"#b86a00");
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.3); ctx.fill();
+    ctx.strokeStyle="#8a5200"; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle="#fff8d0"; ctx.font="900 "+Math.max(9,r)+"px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("$",x,y+0.5);
+  }
+  function drawSky(){
+    const g=ctx.createLinearGradient(0,0,0,H);
+    if (level===2){ g.addColorStop(0,"#071433"); g.addColorStop(1,"#1b3d78"); }
+    else if (level===3){ g.addColorStop(0,"#5d6f86"); g.addColorStop(1,"#9eb0c4"); }
+    else if (level===5){ g.addColorStop(0,"#2a2e34"); g.addColorStop(1,"#4a4036"); }
+    else { g.addColorStop(0,"#1f92f2"); g.addColorStop(0.55,"#67c6fb"); g.addColorStop(1,"#b7e6ff"); }
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    if (level===2){
+      ctx.fillStyle="#f4f1c8"; ctx.beginPath(); ctx.arc(W*0.78, 90, 28, 0, 6.3); ctx.fill();
+      ctx.fillStyle="#fff"; for (let i=0;i<28;i++){ ctx.fillRect((i*97)%W, 30+(i*37)%160, 2, 2); }
+    } else if (level===5){
+      ctx.fillStyle="#3a332c"; ctx.fillRect(0, 40, W, 36);
+      ctx.fillStyle="#f1d27a"; for (let x=40-(camX*0.2%80); x<W; x+=80) ctx.fillRect(x, 52, 18, 6);
+    } else {
+      const shift=camX*0.15;
+      cloud(160-(shift%900),78,1.1); cloud(520-(shift%1100),130,0.8); cloud(860-(shift%980),64,1.15);
+      if (level===4){ ctx.fillStyle="#ffe36b"; ctx.beginPath(); ctx.arc(W-90,70,34,0,6.3); ctx.fill(); }
+    }
+  }
+  function drawGround(){
+    if (level===5){ ctx.fillStyle="#3d3832"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#6d655b"; ctx.fillRect(0,GROUND-8,W,10); return; }
+    if (level===3){ ctx.fillStyle="#8a6a42"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#6d8a3a"; ctx.fillRect(0,GROUND-8,W,10); return; }
     ctx.fillStyle="#c46a32"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#3cab45"; ctx.fillRect(0,GROUND-10,W,12);
-    const palmShift=camX*0.35; for (let x=180-(palmShift%340); x<W+40; x+=340) palm(x);
-    for (const c of coins){ if (c.state==="pocket" || c.x<camX-30 || c.x>camX+W+30) continue; goldCoin(c); }
-    const hs = drawSprite(heroFrame(), hero.x, hero.y, hero.h, hero.facing); hero.w = hs.w || hero.w;
-    if (mouse.alive){ const ms = drawSprite(mouseFrame(), mouse.x, mouse.y, mouse.h * mouse.scale, 1); mouse.w = ms.w || mouse.w; }
+    if (level===1){ const palmShift=camX*0.35; for (let x=180-(palmShift%340); x<W+40; x+=340) palm(x); }
+  }
+  function drawObstacles(){
+    obstacles.forEach(o => {
+      const x=o.x-camX;
+      if (x < -200 || x > W+200) return;
+      if (o.type==="house"){ ctx.fillStyle="#d9c3a1"; ctx.fillRect(x, GROUND-o.h, o.w, o.h); ctx.fillStyle="#8d3b32"; ctx.beginPath(); ctx.moveTo(x-8,GROUND-o.h); ctx.lineTo(x+o.w/2,GROUND-o.h-36); ctx.lineTo(x+o.w+8,GROUND-o.h); ctx.fill(); }
+      else if (o.type==="mud"){ ctx.fillStyle="#6a5434"; ctx.beginPath(); ctx.ellipse(x+o.w/2, GROUND-4, o.w/2, 10, 0, 0, 6.3); ctx.fill(); }
+      else { ctx.fillStyle=o.type==="oncoming"?"#c23b3b":"#2f6db5"; ctx.fillRect(x, GROUND-o.h, o.w, o.h-8); ctx.fillStyle="#dcecff"; ctx.fillRect(x+16, GROUND-o.h+8, 36, 16); ctx.fillStyle="#222"; ctx.beginPath(); ctx.arc(x+24, GROUND-6, 8, 0, 6.3); ctx.arc(x+o.w-24, GROUND-6, 8, 0, 6.3); ctx.fill(); }
+    });
+  }
+  function draw(){
+    drawSky(); drawGround();
+    for (const c of coins){ if (c.state==="pocket" || c.x<camX-40 || c.x>camX+W+40) continue; money(c); }
+    drawObstacles();
+    const hs = drawSprite(heroImg(), hero.x, hero.y, hero.h * hero.scale, hero.facing);
+    hero.w = hs.w || hero.w;
+    enemies.forEach(e => { if (!e.alive) return; drawSprite(enemyImg(e), e.x, e.y, enemyHeight(e), 1); });
+    if (level===3){
+      ctx.fillStyle="rgba(180,200,220,.25)";
+      for (let i=0;i<18;i++){ const x=(i*80+clock*220)%W; ctx.fillRect(x, 40+(i*37)%H, 2, 18); }
+    }
   }
   function loop(ts){ if(!last) last=ts; const dt=(ts-last)/1000; last=ts; update(dt); draw(); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
