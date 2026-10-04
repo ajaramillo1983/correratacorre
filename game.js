@@ -127,14 +127,16 @@
   document.getElementById("btn-again").addEventListener("click", restart);
   document.getElementById("btn-retry").addEventListener("click", restart);
   document.getElementById("btn-restart").addEventListener("click", restart);
-  function hideAll(){ ["popup","select","brief","victory","defeat","life"].forEach(id => document.getElementById(id).classList.remove("show")); }
+  function hideAll(){ ["popup","select","brief","victory","defeat","life"].forEach(id => { const el = document.getElementById(id); el.classList.remove("show"); el.style.display = ""; }); }
   function choose(id){ heroId = id; ensureAudio(); hideAll(); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent = "Nivel 1: salta 5 veces en la cabeza"; state="PLAYING"; }
   function restart(){ hideAll(); document.getElementById("select").classList.add("show"); hintEl.style.display="none"; state="SELECT"; }
   function showBrief(n){
     hideAll();
     document.getElementById("brief-title").textContent = "Nivel " + n;
-    document.getElementById("brief-text").textContent = BRIEFS[n];
-    document.getElementById("brief").classList.add("show");
+    document.getElementById("brief-text").textContent = BRIEFS[n] || "Sigue al siguiente nivel.";
+    const box = document.getElementById("brief");
+    box.classList.add("show");
+    box.style.display = "flex";
     hintEl.style.display = "none"; state = "BRIEF";
   }
   function loseLife(){
@@ -196,7 +198,7 @@
   }
   function checkStomp(){
     if (hitLock>0 || hero.onGround || hero.vy<=40) return;
-    const feet = { x:hero.x-20, y:hero.y-18, w:40, h:20 };
+    const feet = { x:hero.x-34, y:hero.y-28, w:68, h:34 };
     for (const e of enemies){
       if (!e.alive) continue;
       const h = enemyHeight(e), w = h * aspect(enemyImg(e));
@@ -209,9 +211,17 @@
       return;
     }
   }
+  function finishLevel(){
+    coins.forEach(c => { c.x = c.ox; c.y = c.oy; c.stolen = false; c.state = "home"; c.owner = null; });
+    stolenCount = 0;
+    updateHud();
+    if (level < 5) { level++; showBrief(level); }
+    else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
+  }
   function explode(e){
     e.alive = false; beep(90,0.25,"sawtooth",0.1);
     coins.forEach(c => { if (c.stolen && c.owner === e) { c.state = "return"; c.delay = Math.random()*0.15; } });
+    if (enemies.length && enemies.every(en => !en.alive)) finishLevel();
   }
   function returnAllStolen(){
     coins.forEach(c => { if (c.stolen && c.state !== "home") { c.state = "return"; c.delay = Math.random()*0.12; } });
@@ -244,13 +254,7 @@
     });
     updateHud();
     if (stolenCount >= GOAL) { loseLife(); return; }
-    if (enemies.length && enemies.every(e => !e.alive)) {
-      coins.forEach(c => { c.x = c.ox; c.y = c.oy; c.stolen = false; c.state = "home"; c.owner = null; });
-      stolenCount = 0;
-      updateHud();
-      if (level < 5) { level++; showBrief(level); }
-      else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
-    }
+    if (enemies.length && enemies.every(e => !e.alive)) finishLevel();
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
   function drawSprite(img, x, y, height, facing){
