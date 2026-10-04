@@ -3,7 +3,7 @@
   const ctx = canvas.getContext("2d");
   const hintEl = document.getElementById("hint");
   let W = 1400, H = 780, GROUND = 640, portrait = false, level = 1;
-  const GRAVITY = 2200, JUMP_V = -1560;
+  const GRAVITY = 2200, JUMP_V = -1560, GOAL = 1000;
   const HERO_ACC = 2600, HERO_FRI = 2000, HERO_MAX = 460;
   const FONT = {
     S:["01110","10001","10000","01110","00001","10001","01110"],
@@ -23,33 +23,30 @@
     4: "Vaya, vaya... Henry Ayala ha conseguido más maquinaria para convencer a los votantes y ha multiplicado a Wilson y Yadira. Evita que se lleven más dinero para incrementar su patrimonio.",
     5: "El día de las elecciones está a punto de llegar y personajes oscuros han colocado más dinero en la campaña de Wilson y Yadira. ¡Se multiplicaron! Persíguelos y salta cinco veces en su cabeza para ganar."
   };
+  const LIFE_TEXT = [
+    "Recuerda que las obras que hacen hoy, en campaña, te las cobran luego con intereses cuando llegan al poder. ¡Vuelve a intentar!",
+    "Ups, Wilson y Jadira fueron más rápidos para robar. No te desanimes, te queda una vida para salvar Santo Domingo."
+  ];
   const LEVELS = [
     { e1:1, e2:0, speed:170 },
     { e1:0, e2:1, speed:220 },
     { e1:1, e2:1, speed:270 },
     { e1:2, e2:2, speed:320 },
-    { e1:3, e2:3, speed:380 }
+    { e1:4, e2:4, speed:360 }
   ];
-  let state = "INTRO", last = 0, stolenCount = 0, totalPieces = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, camX = 0, clock = 0;
+  let state = "INTRO", last = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, camX = 0, clock = 0;
   let keys = {}, touch = { left:false, right:false, jump:false };
   let coins = [], obstacles = [], enemies = [], nextLetterX = 520, phraseIndex = 0, heroId = 1;
-  const imgs = {
-    hero1: new Image(), hero2: new Image(), enemy1: new Image(), enemy2: new Image()
-  };
-  imgs.hero1.src = "images/hero1.png";
-  imgs.hero2.src = "images/hero2.png";
-  imgs.enemy1.src = "images/enemy1.png";
-  imgs.enemy2.src = "images/enemy2.png";
+  const imgs = { hero1:new Image(), hero2:new Image(), enemy1:new Image(), enemy2:new Image() };
+  imgs.hero1.src = "images/hero1.png"; imgs.hero2.src = "images/hero2.png";
+  imgs.enemy1.src = "images/enemy1.png"; imgs.enemy2.src = "images/enemy2.png";
   const hero = { x:180, y:640, vx:0, vy:0, w:80, h:168, facing:1, onGround:true, scale:1 };
   function ready(img){ return img && img.complete && img.naturalWidth; }
-  function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.55; }
+  function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.5; }
   function heroImg(){ return heroId === 2 ? imgs.hero2 : imgs.hero1; }
-  function heroName(){ return heroId === 2 ? "Lady Cedeño" : "Liliana Silva"; }
   function applyLayoutSize(){
     portrait = window.innerWidth < 820 || window.innerHeight > window.innerWidth;
-    W = portrait ? 780 : 1400;
-    H = portrait ? 1280 : 780;
-    GROUND = portrait ? 1040 : 620;
+    W = portrait ? 780 : 1400; H = portrait ? 1280 : 780; GROUND = portrait ? 1040 : 620;
     canvas.width = W; canvas.height = H;
     hero.h = portrait ? 168 : 176;
     const wrap = document.getElementById("game-wrap"), stage = document.getElementById("stage");
@@ -65,49 +62,35 @@
     const cell = portrait ? 22 : 20;
     const top = high ? GROUND - (portrait ? 500 : 430) : GROUND - (portrait ? 300 : 250);
     for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") {
-      coins.push({
-        x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell,
-        stolen:false, state:"home", kind: (r+c) % 3 === 0 ? "bill" : "coin",
-        r: portrait ? 11 : 12, owner:null, flyVx:0, flyVy:0, delay:0
-      });
-      totalPieces++;
+      coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", kind:(r+c)%3===0?"bill":"coin", r:portrait?11:12, owner:null, flyVx:0, flyVy:0, delay:0 });
     }
   }
   function ensureSigns(){
     while (nextLetterX < camX + W + 820) {
-      const i = phraseIndex % PHRASE.length;
-      const ch = PHRASE[i];
+      const i = phraseIndex % PHRASE.length, ch = PHRASE[i];
       if (ch !== " ") spawnLetter(ch, nextLetterX, i < 5);
-      nextLetterX += ch === " " ? 100 : 168;
-      phraseIndex++;
+      nextLetterX += ch === " " ? 100 : 168; phraseIndex++;
     }
   }
-  function makeEnemy(kind, x){
-    return { kind, x, y:GROUND, vx:0, vy:0, scale:1, hits:0, alive:true, onGround:true, target:null, grab:null, grabT:0 };
-  }
+  function makeEnemy(kind, x){ return { kind, x, y:GROUND, vx:0, vy:0, scale:1, hits:0, alive:true, onGround:true, target:null, grab:null, grabT:0 }; }
   function spawnLevel(){
     const cfg = LEVELS[level-1];
-    enemies = [];
-    let x = hero.x + 420;
-    for (let i = 0; i < cfg.e1; i++) { enemies.push(makeEnemy(1, x)); x += 260; }
-    for (let i = 0; i < cfg.e2; i++) { enemies.push(makeEnemy(2, x)); x += 260; }
+    enemies = []; let x = hero.x + 460;
+    for (let i = 0; i < cfg.e1; i++) { enemies.push(makeEnemy(1, x)); x += 280; }
+    for (let i = 0; i < cfg.e2; i++) { enemies.push(makeEnemy(2, x)); x += 280; }
     obstacles = [];
-    if (level === 3) {
-      for (let i = 0; i < 8; i++) obstacles.push({ type:"mud", x:900+i*520, w:120, h:18 });
-    }
-    if (level === 4) {
-      for (let i = 0; i < 6; i++) {
-        obstacles.push({ type: i % 2 ? "car" : "house", x:860+i*640, w: i % 2 ? 130 : 150, h: i % 2 ? 54 : 110 });
-      }
-    }
-    if (level === 5) {
-      for (let i = 0; i < 7; i++) obstacles.push({ type:"oncoming", x:1100+i*700, w:140, h:58, vx:-260 });
-    }
+    if (level === 3) for (let i = 0; i < 6; i++) obstacles.push({ type:"mud", x:980+i*640, w:110, h:18 });
+    if (level === 4) for (let i = 0; i < 5; i++) obstacles.push({ type: i % 2 ? "car" : "house", x:1000+i*780, w: i % 2 ? 120 : 140, h: i % 2 ? 50 : 100 });
+    if (level === 5) for (let i = 0; i < 3; i++) obstacles.push({ type:"oncoming", x:1400+i*1600, w:130, h:52, vx:-180 });
   }
   function resetWorld(){
-    level = 1; stolenCount = 0; totalPieces = 0; lives = 3; camX = 0;
-    coins = []; obstacles = []; nextLetterX = 520; phraseIndex = 0;
+    level = 1; stolenCount = 0; lives = 3; camX = 0; coins = []; nextLetterX = 520; phraseIndex = 0;
     hero.x = 180; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.scale = 1; hero.onGround = true;
+    spawnLevel(); ensureSigns(); updateHud();
+  }
+  function retryLevel(){
+    stolenCount = 0; camX = 0; coins = []; nextLetterX = 520; phraseIndex = 0;
+    hero.x = 180; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.onGround = true;
     spawnLevel(); ensureSigns(); updateHud();
   }
   window.addEventListener("resize", applyLayoutSize);
@@ -115,7 +98,13 @@
   applyLayoutSize(); resetWorld();
   function ensureAudio(){ if (!audioReady) { ac = new (window.AudioContext||window.webkitAudioContext)(); audioReady = true; } }
   function beep(f,d,t,v){ if (muted||!ac) return; const o=ac.createOscillator(), g=ac.createGain(); o.type=t||"square"; o.frequency.value=f; g.gain.value=v||0.06; g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+d); o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+d); }
-  window.addEventListener("keydown", e => { keys[e.code]=true; if(["ArrowLeft","ArrowRight","ArrowUp","Space"].includes(e.code)) e.preventDefault(); });
+  window.addEventListener("keydown", e => {
+    keys[e.code]=true;
+    if (["ArrowLeft","ArrowRight","ArrowUp","Space"].includes(e.code)) e.preventDefault();
+    if (e.code === "Enter" && document.getElementById("brief").classList.contains("show")) {
+      e.preventDefault(); document.getElementById("btn-brief").click();
+    }
+  });
   window.addEventListener("keyup", e => { keys[e.code]=false; });
   function bindHold(el, prop){ const on=ev=>{ev.preventDefault(); touch[prop]=true;}; const off=ev=>{ev.preventDefault(); touch[prop]=false;}; el.addEventListener("pointerdown", on); el.addEventListener("pointerup", off); el.addEventListener("pointercancel", off); el.addEventListener("pointerleave", off); }
   bindHold(document.getElementById("btn-left"), "left");
@@ -127,10 +116,11 @@
   document.getElementById("pick-hero2").addEventListener("click", () => choose(2));
   document.getElementById("btn-exit").addEventListener("click", () => { hideAll(); document.getElementById("popup").classList.add("show"); state="INTRO"; });
   document.getElementById("btn-brief").addEventListener("click", () => { hideAll(); hintEl.style.display="block"; state="PLAYING"; });
+  document.getElementById("btn-life").addEventListener("click", () => { hideAll(); retryLevel(); hintEl.style.display="block"; state="PLAYING"; });
   document.getElementById("btn-again").addEventListener("click", restart);
   document.getElementById("btn-retry").addEventListener("click", restart);
   document.getElementById("btn-restart").addEventListener("click", restart);
-  function hideAll(){ ["popup","select","brief","victory","defeat"].forEach(id => document.getElementById(id).classList.remove("show")); }
+  function hideAll(){ ["popup","select","brief","victory","defeat","life"].forEach(id => document.getElementById(id).classList.remove("show")); }
   function choose(id){ heroId = id; ensureAudio(); hideAll(); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent = "Nivel 1: salta 5 veces en la cabeza"; state="PLAYING"; }
   function restart(){ hideAll(); document.getElementById("select").classList.add("show"); hintEl.style.display="none"; state="SELECT"; }
   function showBrief(n){
@@ -138,13 +128,18 @@
     document.getElementById("brief-title").textContent = "Nivel " + n;
     document.getElementById("brief-text").textContent = BRIEFS[n];
     document.getElementById("brief").classList.add("show");
-    hintEl.style.display = "none";
-    state = "BRIEF";
+    hintEl.style.display = "none"; state = "BRIEF";
+  }
+  function loseLife(){
+    lives--; updateHud(); state = "LIFE"; hintEl.style.display = "none";
+    if (lives <= 0) { state = "DEFEAT"; document.getElementById("defeat").classList.add("show"); return; }
+    document.getElementById("life-text").textContent = lives === 2 ? LIFE_TEXT[0] : LIFE_TEXT[1];
+    document.getElementById("life").classList.add("show");
   }
   function updateHud(){
-    document.getElementById("coin-hud").textContent = "🪙 " + stolenCount;
+    document.getElementById("coin-hud").textContent = "🪙 " + stolenCount + "/" + GOAL;
     document.getElementById("level-hud").textContent = "NIVEL " + level + "/5";
-    document.getElementById("hearts").textContent = "❤ ".repeat(lives).trim();
+    document.getElementById("hearts").textContent = "❤ ".repeat(Math.max(0, lives)).trim();
   }
   function enemyImg(e){ return e.kind === 2 ? imgs.enemy2 : imgs.enemy1; }
   function enemyHeight(e){ return hero.h * 1.85 * e.scale; }
@@ -160,8 +155,7 @@
   }
   function applyGravity(b, dt){
     b.vy += GRAVITY*dt; b.x += b.vx*dt; b.y += b.vy*dt;
-    if (b.y >= GROUND){ b.y = GROUND; b.vy = 0; b.onGround = true; }
-    else b.onGround = false;
+    if (b.y >= GROUND){ b.y = GROUND; b.vy = 0; b.onGround = true; } else b.onGround = false;
   }
   function updateHero(dt){
     const left = keys.ArrowLeft||keys.KeyA||touch.left, right = keys.ArrowRight||keys.KeyD||touch.right, jump = keys.ArrowUp||keys.Space||keys.KeyW||touch.jump;
@@ -172,8 +166,7 @@
     if (jump && hero.onGround){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); }
     applyGravity(hero, dt);
     if (hero.x < camX+36){ hero.x = camX+36; hero.vx = Math.max(0, hero.vx); }
-    const hh = hero.h * hero.scale;
-    if (hh > H * 0.42) hero.scale = (H * 0.42) / hero.h;
+    if (hero.h * hero.scale > H * 0.42) hero.scale = (H * 0.42) / hero.h;
   }
   function updateEnemy(e, dt){
     const speed = LEVELS[level-1].speed;
@@ -190,7 +183,7 @@
     e.vx = speed;
     if (e.target && e.target.x - e.x < 50){
       if (e.target.y < reachY(e)-24 && e.onGround) e.vy = JUMP_V;
-      if (Math.abs(e.target.y - reachY(e)) < 60){ e.grab = e.target; e.grabT = 0; e.vx = 0; }
+      if (Math.abs(e.target.y - reachY(e)) < 60){ e.grab = e.target; e.grab.owner = e; e.grabT = 0; e.vx = 0; }
     }
     applyGravity(e, dt);
   }
@@ -199,9 +192,7 @@
     const feet = { x:hero.x-20, y:hero.y-18, w:40, h:20 };
     for (const e of enemies){
       if (!e.alive) continue;
-      const h = enemyHeight(e);
-      const img = enemyImg(e);
-      const w = h * aspect(img);
+      const h = enemyHeight(e), w = h * aspect(enemyImg(e));
       const head = { x:e.x-w*0.22, y:e.y-h, w:w*0.44, h:h*0.22 };
       if (!(feet.x < head.x+head.w && feet.x+feet.w > head.x && feet.y < head.y+head.h && feet.y+feet.h > head.y)) continue;
       e.hits++; hitLock = 0.4; hero.vy = JUMP_V*0.55; hero.scale = Math.min(1.45, hero.scale + 0.07); beep(180,0.12,"square",0.1);
@@ -213,55 +204,45 @@
   }
   function explode(e){
     e.alive = false; beep(90,0.25,"sawtooth",0.1);
-    coins.forEach(c => {
-      if (c.owner !== e && c.stolen) return;
-      if (!c.stolen) return;
-      c.state = "return"; c.delay = Math.random()*0.2;
-    });
+    coins.forEach(c => { if (c.stolen && c.owner === e) { c.state = "return"; c.delay = Math.random()*0.15; } });
   }
-  function hitObstacle(dt){
-    const feet = hero.y > GROUND-28;
+  function returnAllStolen(){
+    coins.forEach(c => { if (c.stolen && c.state !== "home") { c.state = "return"; c.delay = Math.random()*0.12; } });
+  }
+  function hitObstacle(){
+    const feet = hero.onGround;
     for (const o of obstacles){
-      if (o.type === "oncoming"){
-        o.x += o.vx * dt;
-        if (o.x < camX - 200) o.x = camX + W + 200 + Math.random()*300;
-        if (feet && hero.x > o.x && hero.x < o.x+o.w && hero.y > GROUND-o.h){
-          hero.x = camX + 40; hero.vx = 0; beep(90,0.15,"square",0.08);
+      if (o.type === "oncoming") {
+        if (feet && hero.x > o.x-10 && hero.x < o.x+o.w && Math.abs(hero.y - GROUND) < 8) {
+          hero.x = camX + 40; hero.vx = 0; beep(90,0.12,"square",0.08);
         }
-      } else if (feet && hero.x > o.x && hero.x < o.x+o.w){
-        if (o.type === "mud") hero.vx *= 0.9;
-        else { hero.x = o.x - 8; hero.vx = 0; }
+      } else if (feet && hero.x > o.x && hero.x < o.x+o.w) {
+        if (o.type === "mud") hero.vx *= 0.92;
+        else { hero.x = o.x - 10; hero.vx = 0; }
       }
     }
-  }
-  function levelClear(){
-    return enemies.length && enemies.every(e => !e.alive) && coins.every(c => !c.stolen || c.state==="home");
   }
   function update(dt){
     if (dt>0.05) dt=0.05; clock += dt; hitLock = Math.max(0, hitLock-dt);
     if (state!=="PLAYING") return;
     updateHero(dt);
     enemies.forEach(e => updateEnemy(e, dt));
-    checkStomp();
-    hitObstacle(dt);
-    ensureSigns();
+    obstacles.forEach(o => { if (o.type==="oncoming") { o.x += o.vx*dt; if (o.x < camX-240) o.x = camX + W + 900; } });
+    checkStomp(); hitObstacle(); ensureSigns();
     coins.forEach(c => {
       if (c.state!=="return") return;
       if (c.delay>0){ c.delay -= dt; return; }
-      c.x += (c.ox-c.x)*Math.min(1, dt*3.2);
-      c.y += (c.oy-c.y)*Math.min(1, dt*3.2);
+      c.x += (c.ox-c.x)*Math.min(1, dt*3.4); c.y += (c.oy-c.y)*Math.min(1, dt*3.4);
       if (Math.hypot(c.ox-c.x, c.oy-c.y)<6){ c.x=c.ox; c.y=c.oy; c.stolen=false; c.state="home"; c.owner=null; stolenCount=Math.max(0, stolenCount-1); }
     });
     updateHud();
-    if (totalPieces && stolenCount >= Math.max(40, Math.floor(totalPieces*0.55))){
-      state = "DEFEAT"; hintEl.style.display="none";
-      document.getElementById("lives-left").textContent = "Se robaron la riqueza de Santo Domingo.";
-      document.getElementById("defeat").classList.add("show");
-      return;
-    }
-    if (levelClear()){
-      if (level < 5){ level++; spawnLevel(); showBrief(level); }
-      else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
+    if (stolenCount >= GOAL) { loseLife(); return; }
+    if (enemies.length && enemies.every(e => !e.alive)) {
+      returnAllStolen();
+      if (coins.every(c => !c.stolen)) {
+        if (level < 5) { level++; spawnLevel(); showBrief(level); }
+        else { state="VICTORY"; hintEl.style.display="none"; document.getElementById("victory").classList.add("show"); }
+      }
     }
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
@@ -269,8 +250,7 @@
     if (!ready(img)) return {w:0,h:0};
     const s = sizeOf(img, height);
     ctx.save(); ctx.translate(x-camX, y); if (facing<0) ctx.scale(-1,1);
-    ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h);
-    ctx.restore();
+    ctx.drawImage(img, -s.w/2, -s.h, s.w, s.h); ctx.restore();
     return s;
   }
   function cloud(x,y,s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
@@ -279,14 +259,11 @@
     const x=c.x-camX, y=c.y;
     if (c.kind==="bill"){
       ctx.save(); ctx.translate(x,y); ctx.rotate(-0.15);
-      ctx.fillStyle="#1f8a45"; ctx.fillRect(-16,-9,32,18);
-      ctx.strokeStyle="#b6f3c8"; ctx.strokeRect(-16,-9,32,18);
+      ctx.fillStyle="#1f8a45"; ctx.fillRect(-16,-9,32,18); ctx.strokeStyle="#b6f3c8"; ctx.strokeRect(-16,-9,32,18);
       ctx.fillStyle="#e9ffe9"; ctx.font="900 11px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("$",0,1);
-      ctx.restore();
-      return;
+      ctx.restore(); return;
     }
-    const r=c.r;
-    const g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
+    const r=c.r, g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
     g.addColorStop(0,"#fff6c2"); g.addColorStop(0.45,"#ffc62b"); g.addColorStop(1,"#b86a00");
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.3); ctx.fill();
     ctx.strokeStyle="#8a5200"; ctx.lineWidth=2; ctx.stroke();
@@ -299,17 +276,9 @@
     else if (level===5){ g.addColorStop(0,"#2a2e34"); g.addColorStop(1,"#4a4036"); }
     else { g.addColorStop(0,"#1f92f2"); g.addColorStop(0.55,"#67c6fb"); g.addColorStop(1,"#b7e6ff"); }
     ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    if (level===2){
-      ctx.fillStyle="#f4f1c8"; ctx.beginPath(); ctx.arc(W*0.78, 90, 28, 0, 6.3); ctx.fill();
-      ctx.fillStyle="#fff"; for (let i=0;i<28;i++){ ctx.fillRect((i*97)%W, 30+(i*37)%160, 2, 2); }
-    } else if (level===5){
-      ctx.fillStyle="#3a332c"; ctx.fillRect(0, 40, W, 36);
-      ctx.fillStyle="#f1d27a"; for (let x=40-(camX*0.2%80); x<W; x+=80) ctx.fillRect(x, 52, 18, 6);
-    } else {
-      const shift=camX*0.15;
-      cloud(160-(shift%900),78,1.1); cloud(520-(shift%1100),130,0.8); cloud(860-(shift%980),64,1.15);
-      if (level===4){ ctx.fillStyle="#ffe36b"; ctx.beginPath(); ctx.arc(W-90,70,34,0,6.3); ctx.fill(); }
-    }
+    if (level===2){ ctx.fillStyle="#f4f1c8"; ctx.beginPath(); ctx.arc(W*0.78, 90, 28, 0, 6.3); ctx.fill(); ctx.fillStyle="#fff"; for (let i=0;i<28;i++) ctx.fillRect((i*97)%W, 30+(i*37)%160, 2, 2); }
+    else if (level===5){ ctx.fillStyle="#3a332c"; ctx.fillRect(0, 40, W, 36); ctx.fillStyle="#f1d27a"; for (let x=40-(camX*0.2%80); x<W; x+=80) ctx.fillRect(x, 52, 18, 6); }
+    else { const shift=camX*0.15; cloud(160-(shift%900),78,1.1); cloud(520-(shift%1100),130,0.8); cloud(860-(shift%980),64,1.15); if (level===4){ ctx.fillStyle="#ffe36b"; ctx.beginPath(); ctx.arc(W-90,70,34,0,6.3); ctx.fill(); } }
   }
   function drawGround(){
     if (level===5){ ctx.fillStyle="#3d3832"; ctx.fillRect(0,GROUND,W,H-GROUND); ctx.fillStyle="#6d655b"; ctx.fillRect(0,GROUND-8,W,10); return; }
@@ -319,8 +288,7 @@
   }
   function drawObstacles(){
     obstacles.forEach(o => {
-      const x=o.x-camX;
-      if (x < -200 || x > W+200) return;
+      const x=o.x-camX; if (x<-200 || x>W+200) return;
       if (o.type==="house"){ ctx.fillStyle="#d9c3a1"; ctx.fillRect(x, GROUND-o.h, o.w, o.h); ctx.fillStyle="#8d3b32"; ctx.beginPath(); ctx.moveTo(x-8,GROUND-o.h); ctx.lineTo(x+o.w/2,GROUND-o.h-36); ctx.lineTo(x+o.w+8,GROUND-o.h); ctx.fill(); }
       else if (o.type==="mud"){ ctx.fillStyle="#6a5434"; ctx.beginPath(); ctx.ellipse(x+o.w/2, GROUND-4, o.w/2, 10, 0, 0, 6.3); ctx.fill(); }
       else { ctx.fillStyle=o.type==="oncoming"?"#c23b3b":"#2f6db5"; ctx.fillRect(x, GROUND-o.h, o.w, o.h-8); ctx.fillStyle="#dcecff"; ctx.fillRect(x+16, GROUND-o.h+8, 36, 16); ctx.fillStyle="#222"; ctx.beginPath(); ctx.arc(x+24, GROUND-6, 8, 0, 6.3); ctx.arc(x+o.w-24, GROUND-6, 8, 0, 6.3); ctx.fill(); }
@@ -332,11 +300,8 @@
     drawObstacles();
     const hs = drawSprite(heroImg(), hero.x, hero.y, hero.h * hero.scale, hero.facing);
     hero.w = hs.w || hero.w;
-    enemies.forEach(e => { if (!e.alive) return; drawSprite(enemyImg(e), e.x, e.y, enemyHeight(e), 1); });
-    if (level===3){
-      ctx.fillStyle="rgba(180,200,220,.25)";
-      for (let i=0;i<18;i++){ const x=(i*80+clock*220)%W; ctx.fillRect(x, 40+(i*37)%H, 2, 18); }
-    }
+    enemies.forEach(e => { if (e.alive) drawSprite(enemyImg(e), e.x, e.y, enemyHeight(e), 1); });
+    if (level===3){ ctx.fillStyle="rgba(180,200,220,.25)"; for (let i=0;i<18;i++){ const x=(i*80+clock*220)%W; ctx.fillRect(x, 40+(i*37)%H, 2, 18); } }
   }
   function loop(ts){ if(!last) last=ts; const dt=(ts-last)/1000; last=ts; update(dt); draw(); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
