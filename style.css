@@ -33,7 +33,7 @@ body { display: grid; place-items: center; }
 }
 .popup.show { display: flex; }
 .popup-card {
-  width: min(520px, 94%); max-height: calc(100% - 24px); overflow: auto;
+  width: min(520px, 94%); max-height: calc(100dvh - 24px); overflow: auto;
   background: linear-gradient(180deg, #fffdf4 0%, #fff3c4 100%);
   border: 4px solid #d08a20; border-radius: 22px; padding: 16px;
   text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: stretch;
@@ -85,3 +85,15 @@ body { display: grid; place-items: center; }
   #btn-jump { width: 96px; min-width: 96px; height: 56px; font-size: 10px; padding: 0 6px; }
   .pick img { height: 120px; }
 }
+
+#victory.popup { padding: 8px; }
+#victory .win-card {
+  width: min(460px, 96vw); max-height: calc(100dvh - 16px); overflow: hidden;
+  padding: 8px; gap: 8px; justify-content: center;
+}
+#victory .win-art {
+  width: auto; max-width: 100%; height: auto;
+  max-height: calc(100dvh - 92px); object-fit: contain; margin: 0 auto;
+}
+#victory .win-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+#victory .win-actions .btn-green, #victory .win-actions .btn-download { margin: 0; padding: 10px 14px; font-size: 14px; }
