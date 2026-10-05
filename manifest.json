@@ -1,7 +1,9 @@
 {
   "name": "Corre Rata Corre",
   "short_name": "Corre Rata",
+  "id": "./",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#071a37",
   "theme_color": "#1f74d9",
