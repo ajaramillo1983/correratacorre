@@ -191,6 +191,7 @@
     }
     if (!e.target || e.target.stolen) e.target = nearest(e);
     e.vx = speed;
+    if (e.x > hero.x + 680) e.x = hero.x + 420;
     if (e.target && e.target.x - e.x < 50){
       if (e.target.y < reachY(e)-24 && e.onGround) e.vy = JUMP_V;
       if (Math.abs(e.target.y - reachY(e)) < 60){ e.grab = e.target; e.grab.owner = e; e.grabT = 0; e.vx = 0; }
@@ -231,11 +232,16 @@
     if (level < 5) { level++; showBrief(level); }
     else showVictory();
   }
+  function noRatsLeft(){
+    return defeated >= quota || !enemies.some(en => en.alive);
+  }
   function explode(e){
     if (!e.alive) return;
     e.alive = false; defeated++; beep(90,0.25,"sawtooth",0.1);
     coins.forEach(c => { if (c.stolen && c.owner === e) { c.state = "return"; c.delay = Math.random()*0.15; } });
-    if (defeated >= quota || enemies.every(en => !en.alive)) finishLevel();
+    const vivos = enemies.filter(en => en.alive).length;
+    hintEl.textContent = vivos ? ("Ratas " + (quota - vivos) + "/" + quota) : "Golpe 5/5";
+    if (!vivos || defeated >= quota) finishLevel();
   }
   function returnAllStolen(){
     coins.forEach(c => { if (c.stolen && c.state !== "home") { c.state = "return"; c.delay = Math.random()*0.12; } });
@@ -268,7 +274,7 @@
     });
     updateHud();
     if (stolenCount >= GOAL) { loseLife(); return; }
-    if (defeated >= quota || (enemies.length && enemies.every(e => !e.alive))) finishLevel();
+    if (noRatsLeft()) finishLevel();
     camX += (Math.max(0, hero.x - W*0.32) - camX) * Math.min(1, dt*4);
   }
   function drawSprite(img, x, y, height, facing){
