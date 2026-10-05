@@ -32,7 +32,7 @@
           <p class="mission">Tu misión es detenerlas.</p>
           <p class="how">Persigue a las ratas y salta cinco veces en su cabeza antes de que se roben toda la riqueza de Santo Domingo.</p>
           <button id="btn-start" class="btn-green" type="button">COMENZAR</button>
-          <a class="btn-download" href="juego.zip" download>Descarga el juego</a>
+          <button class="btn-download btn-install" type="button">Instalar app</button>
         </div>
       </div>
       <div id="select" class="popup">
@@ -68,7 +68,7 @@
       <div id="victory" class="popup">
         <div class="popup-card">
           <img class="win-art" src="images/victoria.png?v=13" alt="Felicitaciones, ganaste" />
-          <a class="btn-download" href="juego.zip" download>Descarga el juego</a>
+          <button class="btn-download btn-install" type="button">Instalar app</button>
           <button id="btn-again" class="btn-green" type="button">Reiniciar juego</button>
         </div>
       </div>
@@ -96,6 +96,31 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(function () {});
     }
+    var deferredInstall = null;
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      deferredInstall = e;
+    });
+    function installApp() {
+      var ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      var help = document.getElementById("install-help");
+      var text = document.getElementById("install-text");
+      if (deferredInstall) {
+        deferredInstall.prompt();
+        deferredInstall.userChoice.finally(function () { deferredInstall = null; });
+        return;
+      }
+      text.textContent = ios
+        ? "En iPhone o iPad: toca el botón Compartir y elige Agregar a pantalla de inicio. Ahí queda como app, con el ícono del casco."
+        : "En Android o computador: abre el menú del navegador y elige Instalar app o Agregar a pantalla de inicio.";
+      help.classList.add("show");
+    }
+    document.querySelectorAll(".btn-install").forEach(function (btn) {
+      btn.addEventListener("click", installApp);
+    });
+    document.getElementById("btn-install-close").addEventListener("click", function () {
+      document.getElementById("install-help").classList.remove("show");
+    });
   </script>
 </body>
 </html>
