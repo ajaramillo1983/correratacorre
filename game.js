@@ -163,7 +163,7 @@
     document.querySelectorAll(".plays").forEach(el => { el.textContent = text; });
   }
   function loadPlays(){
-    fetch(PLAY_URL + "/get/" + PLAY_KEY).then(r => r.json()).then(d => showPlays(d.value)).catch(() => showPlays(null));
+    fetch(PLAY_URL + "/get/" + PLAY_KEY).then(r => r.json()).then(d => showPlays(typeof d.value === "number" ? d.value : 0)).catch(() => showPlays(null));
   }
   function recordFinish(){
     const key = "crc-counted-" + runToken;
