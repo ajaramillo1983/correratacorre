@@ -40,6 +40,7 @@
   const imgs = { hero1:new Image(), hero2:new Image(), enemy1:new Image(), enemy2:new Image() };
   imgs.hero1.src = "images/hero1.png"; imgs.hero2.src = "images/hero2.png";
   imgs.enemy1.src = "images/enemy1.png"; imgs.enemy2.src = "images/enemy2.png";
+  imgs.coin = new Image(); imgs.coin.src = "images/coin.png";
   const hero = { x:180, y:640, vx:0, vy:0, w:80, h:168, facing:1, onGround:true, scale:1 };
   function ready(img){ return img && img.complete && img.naturalWidth; }
   function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.5; }
@@ -62,7 +63,7 @@
     const cell = portrait ? 22 : 20;
     const top = high ? GROUND - (portrait ? 500 : 430) : GROUND - (portrait ? 300 : 250);
     for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (grid[r][c] === "1") {
-      coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", kind:(r+c)%3===0?"bill":"coin", r:portrait?11:12, owner:null, flyVx:0, flyVy:0, delay:0 });
+      coins.push({ x:x+c*cell, y:top+r*cell, ox:x+c*cell, oy:top+r*cell, stolen:false, state:"home", kind:"coin", r:portrait?11:12, owner:null, flyVx:0, flyVy:0, delay:0 });
     }
   }
   function ensureSigns(){
@@ -97,7 +98,31 @@
   window.addEventListener("resize", applyLayoutSize);
   imgs.hero1.onload = imgs.hero2.onload = applyLayoutSize;
   applyLayoutSize(); resetWorld();
-  function ensureAudio(){ if (!audioReady) { ac = new (window.AudioContext||window.webkitAudioContext)(); audioReady = true; } }
+  let music = null, musicStarted = false, runToken = String(Date.now());
+  function ensureAudio(){
+    if (!audioReady) { ac = new (window.AudioContext||window.webkitAudioContext)(); audioReady = true; }
+    if (ac && ac.state === "suspended") ac.resume().catch(function(){});
+    startMusic();
+  }
+  function startMusic(){
+    if (!music) {
+      music = new Audio("music.mp3");
+      music.loop = true;
+      music.preload = "auto";
+      music.volume = 0.35;
+    }
+    music.muted = muted;
+    if (muted || musicStarted) return;
+    const play = music.play();
+    if (play && play.then) play.then(function(){ musicStarted = true; }).catch(function(){});
+    else musicStarted = true;
+  }
+  function syncMusic(){
+    if (!music) return;
+    music.muted = muted;
+    if (muted) { music.pause(); return; }
+    if (musicStarted) music.play().catch(function(){});
+  }
   function beep(f,d,t,v){ if (muted||!ac) return; const o=ac.createOscillator(), g=ac.createGain(); o.type=t||"square"; o.frequency.value=f; g.gain.value=v||0.06; g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+d); o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+d); }
   window.addEventListener("keydown", e => {
     keys[e.code]=true;
@@ -111,7 +136,7 @@
   bindHold(document.getElementById("btn-left"), "left");
   bindHold(document.getElementById("btn-right"), "right");
   bindHold(document.getElementById("btn-jump"), "jump");
-  document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "🔇" : "🔊"; });
+  document.getElementById("btn-mute").addEventListener("click", () => { muted=!muted; document.getElementById("btn-mute").textContent = muted ? "🔇" : "🔊"; syncMusic(); if (!muted) ensureAudio(); });
   document.getElementById("btn-start").addEventListener("click", () => { ensureAudio(); hideAll(); document.getElementById("select").classList.add("show"); });
   document.getElementById("pick-hero1").addEventListener("click", () => choose(1));
   document.getElementById("pick-hero2").addEventListener("click", () => choose(2));
@@ -130,7 +155,23 @@
   document.getElementById("btn-restart").addEventListener("click", restart);
   function hideAll(){ ["popup","select","brief","victory","defeat","life"].forEach(id => { const el = document.getElementById(id); el.classList.remove("show"); el.style.display = ""; }); }
   function choose(id){ heroId = id; ensureAudio(); hideAll(); applyLayoutSize(); resetWorld(); hintEl.style.display="block"; hintEl.textContent = "Nivel 1: salta 5 veces en la cabeza"; state="PLAYING"; }
-  function restart(){ hideAll(); document.getElementById("select").classList.add("show"); hintEl.style.display="none"; state="SELECT"; }
+  function restart(){ runToken = String(Date.now()); hideAll(); document.getElementById("select").classList.add("show"); hintEl.style.display="none"; state="SELECT"; }
+  const PLAY_URL = "https://abacus.jasoncameron.dev";
+  const PLAY_KEY = "ajaramillo1983/correratacorre-partidas";
+  function showPlays(n){
+    const text = n == null ? "Personas que han jugado: —" : "Personas que han jugado: " + n;
+    document.querySelectorAll(".plays").forEach(el => { el.textContent = text; });
+  }
+  function loadPlays(){
+    fetch(PLAY_URL + "/get/" + PLAY_KEY).then(r => r.json()).then(d => showPlays(d.value)).catch(() => showPlays(null));
+  }
+  function recordFinish(){
+    const key = "crc-counted-" + runToken;
+    if (sessionStorage.getItem(key)) { loadPlays(); return; }
+    sessionStorage.setItem(key, "1");
+    fetch(PLAY_URL + "/hit/" + PLAY_KEY).then(r => r.json()).then(d => showPlays(d.value)).catch(() => loadPlays());
+  }
+  loadPlays();
   function showBrief(n){
     hideAll();
     document.getElementById("brief-title").textContent = "Nivel " + n;
@@ -142,7 +183,7 @@
   }
   function loseLife(){
     lives--; updateHud(); state = "LIFE"; hintEl.style.display = "none";
-    if (lives <= 0) { state = "DEFEAT"; document.getElementById("defeat").classList.add("show"); return; }
+    if (lives <= 0) { recordFinish(); state = "DEFEAT"; document.getElementById("defeat").classList.add("show"); return; }
     document.getElementById("life-text").textContent = lives === 2 ? LIFE_TEXT[0] : LIFE_TEXT[1];
     document.getElementById("life").classList.add("show");
   }
@@ -214,6 +255,7 @@
     }
   }
   function showVictory(){
+    recordFinish();
     state = "VICTORY";
     hintEl.style.display = "none";
     hideAll();
@@ -287,18 +329,16 @@
   function cloud(x,y,s){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x,y,34*s,16*s,0,0,6.3); ctx.ellipse(x-22*s,y+4*s,22*s,14*s,0,0,6.3); ctx.ellipse(x+24*s,y+6*s,26*s,15*s,0,0,6.3); ctx.fill(); }
   function palm(x){ const y=GROUND-6; ctx.strokeStyle="#8a5a28"; ctx.lineWidth=7; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+8,y-40,x-2,y-78); ctx.stroke(); ctx.fillStyle="#2f9a3a"; [[-34,-8],[28,-4],[-18,-28],[22,-26],[0,-36]].forEach(([dx,dy],i)=>{ ctx.beginPath(); ctx.ellipse(x+dx,y-78+dy,22,8,(i-2)*0.45,0,6.3); ctx.fill(); }); }
   function money(c){
-    const x=c.x-camX, y=c.y;
-    if (c.kind==="bill"){
-      ctx.save(); ctx.translate(x,y); ctx.rotate(-0.15);
-      ctx.fillStyle="#1f8a45"; ctx.fillRect(-16,-9,32,18); ctx.strokeStyle="#b6f3c8"; ctx.strokeRect(-16,-9,32,18);
-      ctx.fillStyle="#e9ffe9"; ctx.font="900 11px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("$",0,1);
-      ctx.restore(); return;
+    const x=c.x-camX, y=c.y, r=c.r;
+    const size = r * 2.35;
+    if (ready(imgs.coin)) {
+      ctx.drawImage(imgs.coin, x - size/2, y - size/2, size, size);
+      return;
     }
-    const r=c.r, g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
+    const g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
     g.addColorStop(0,"#fff6c2"); g.addColorStop(0.45,"#ffc62b"); g.addColorStop(1,"#b86a00");
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.3); ctx.fill();
     ctx.strokeStyle="#8a5200"; ctx.lineWidth=2; ctx.stroke();
-    ctx.fillStyle="#fff8d0"; ctx.font="900 "+Math.max(9,r)+"px Trebuchet MS"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("$",x,y+0.5);
   }
   function drawSky(){
     const g=ctx.createLinearGradient(0,0,0,H);
