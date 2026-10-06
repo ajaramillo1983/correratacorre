@@ -1,6 +1,6 @@
 {
-  "name": "Corre Rata Corre",
-  "short_name": "Corre Rata",
+  "name": "Videojuego de concienciación electoral.",
+  "short_name": "Videojuego electoral",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",
