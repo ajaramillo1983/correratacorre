@@ -20,7 +20,7 @@
   <meta name="twitter:title" content="Videojuego de concienciación electoral." />
   <meta name="twitter:image" content="https://pisalarata.com/images/enemy1.png?v=202610061343" />
   <meta name="twitter:image:alt" content="Videojuego de concienciación electoral." />
-  <link rel="stylesheet" href="style.css?v=15" />
+  <link rel="stylesheet" href="style.css?v=16" />
 </head>
 <body>
   <div id="game-wrap">
@@ -106,10 +106,10 @@
       </div>
     </div>
   </div>
-  <script src="game.js?v=13"></script>
+  <script src="game.js?v=14"></script>
   <script>
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(function () {});
+      navigator.serviceWorker.register("sw.js?v=9").catch(function () {});
     }
     var deferredInstall = null;
     window.addEventListener("beforeinstallprompt", function (e) {
@@ -125,6 +125,7 @@
         deferredInstall.userChoice.finally(function () { deferredInstall = null; });
         return;
       }
+      if (!help || !text) return;
       text.textContent = ios
         ? "En iPhone o iPad: toca el botón Compartir y elige Agregar a pantalla de inicio. Ahí queda como app, con el ícono del casco."
         : "En Android o computador: abre el menú del navegador y elige Instalar app o Agregar a pantalla de inicio.";
@@ -133,8 +134,10 @@
     document.querySelectorAll(".btn-install").forEach(function (btn) {
       btn.addEventListener("click", installApp);
     });
-    document.getElementById("btn-install-close").addEventListener("click", function () {
-      document.getElementById("install-help").classList.remove("show");
+    var installClose = document.getElementById("btn-install-close");
+    if (installClose) installClose.addEventListener("click", function () {
+      var installHelp = document.getElementById("install-help");
+      if (installHelp) installHelp.classList.remove("show");
     });
   </script>
 </body>
