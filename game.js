@@ -35,13 +35,13 @@
     { e1:4, e2:4, speed:360 }
   ];
   let state = "INTRO", last = 0, stolenCount = 0, lives = 3, muted = false, audioReady = false, ac = null, hitLock = 0, camX = 0, clock = 0;
-  let keys = {}, touch = { left:false, right:false, jump:false };
+  let keys = {}, touch = { left:false, right:false, jump:false }, jumpBuffer = 0;
   let coins = [], obstacles = [], enemies = [], nextLetterX = 520, phraseIndex = 0, heroId = 1, quota = 1, defeated = 0;
   const imgs = { hero1:new Image(), hero2:new Image(), enemy1:new Image(), enemy2:new Image() };
   imgs.hero1.src = "images/hero1.png"; imgs.hero2.src = "images/hero2.png";
   imgs.enemy1.src = "images/enemy1.png"; imgs.enemy2.src = "images/enemy2.png";
   imgs.coin = new Image(); imgs.coin.src = "images/coin.png";
-  const hero = { x:180, y:640, vx:0, vy:0, w:80, h:168, facing:1, onGround:true, scale:1 };
+  const hero = { x:180, y:640, prevY:640, vx:0, vy:0, w:80, h:168, facing:1, onGround:true, scale:1 };
   function ready(img){ return img && img.complete && img.naturalWidth; }
   function aspect(img){ return ready(img) ? img.naturalWidth / img.naturalHeight : 0.5; }
   function heroImg(){ return heroId === 2 ? imgs.hero2 : imgs.hero1; }
@@ -87,12 +87,12 @@
   }
   function resetWorld(){
     level = 1; stolenCount = 0; lives = 3; camX = 0; coins = []; nextLetterX = 520; phraseIndex = 0;
-    hero.x = 180; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.scale = 1; hero.onGround = true;
+    hero.x = 180; hero.y = GROUND; hero.prevY = GROUND; hero.vx = 0; hero.vy = 0; hero.scale = 1; hero.onGround = true;
     spawnLevel(); ensureSigns(); updateHud();
   }
   function retryLevel(){
     stolenCount = 0; camX = 0; coins = []; nextLetterX = 520; phraseIndex = 0;
-    hero.x = 180; hero.y = GROUND; hero.vx = 0; hero.vy = 0; hero.onGround = true;
+    hero.x = 180; hero.y = GROUND; hero.prevY = GROUND; hero.vx = 0; hero.vy = 0; hero.onGround = true;
     spawnLevel(); ensureSigns(); updateHud();
   }
   window.addEventListener("resize", applyLayoutSize);
@@ -132,7 +132,35 @@
     }
   });
   window.addEventListener("keyup", e => { keys[e.code]=false; });
-  function bindHold(el, prop){ const on=ev=>{ev.preventDefault(); touch[prop]=true;}; const off=ev=>{ev.preventDefault(); touch[prop]=false;}; el.addEventListener("pointerdown", on); el.addEventListener("pointerup", off); el.addEventListener("pointercancel", off); el.addEventListener("pointerleave", off); }
+  function clearTouchState(){ touch.left=false; touch.right=false; touch.jump=false; jumpBuffer=0; }
+  function bindHold(el, prop){
+    const active = new Set();
+    const on = ev => {
+      ev.preventDefault();
+      ensureAudio();
+      if (ev.pointerId != null) {
+        active.add(ev.pointerId);
+        try { el.setPointerCapture(ev.pointerId); } catch (_) {}
+      }
+      if (prop === "jump") jumpBuffer = 0.20;
+      else touch[prop] = true;
+    };
+    const off = ev => {
+      ev.preventDefault();
+      if (ev.pointerId != null) active.delete(ev.pointerId); else active.clear();
+      if (prop !== "jump") touch[prop] = active.size > 0;
+      if (ev.pointerId != null) {
+        try { if (el.hasPointerCapture(ev.pointerId)) el.releasePointerCapture(ev.pointerId); } catch (_) {}
+      }
+    };
+    el.addEventListener("pointerdown", on, {passive:false});
+    el.addEventListener("pointerup", off, {passive:false});
+    el.addEventListener("pointercancel", off, {passive:false});
+    el.addEventListener("lostpointercapture", off, {passive:false});
+    el.addEventListener("contextmenu", ev => ev.preventDefault());
+  }
+  window.addEventListener("blur", clearTouchState);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) clearTouchState(); });
   bindHold(document.getElementById("btn-left"), "left");
   bindHold(document.getElementById("btn-right"), "right");
   bindHold(document.getElementById("btn-jump"), "jump");
@@ -209,12 +237,13 @@
     if (b.y >= GROUND){ b.y = GROUND; b.vy = 0; b.onGround = true; } else b.onGround = false;
   }
   function updateHero(dt){
-    const left = keys.ArrowLeft||keys.KeyA||touch.left, right = keys.ArrowRight||keys.KeyD||touch.right, jump = keys.ArrowUp||keys.Space||keys.KeyW||touch.jump;
+    const left = keys.ArrowLeft||keys.KeyA||touch.left, right = keys.ArrowRight||keys.KeyD||touch.right, jump = keys.ArrowUp||keys.Space||keys.KeyW||jumpBuffer>0;
     if (right && !left){ hero.vx += HERO_ACC*dt; hero.facing=1; }
     else if (left && !right){ hero.vx -= HERO_ACC*dt; hero.facing=-1; }
     else hero.vx += (hero.vx>0?-1:1)*Math.min(Math.abs(hero.vx), HERO_FRI*dt);
     hero.vx = Math.max(-HERO_MAX, Math.min(HERO_MAX, hero.vx));
-    if (jump && hero.onGround){ hero.vy = JUMP_V; hero.onGround = false; beep(420,0.12,"square",0.07); }
+    if (jump && hero.onGround){ hero.vy = JUMP_V; hero.onGround = false; jumpBuffer = 0; beep(420,0.12,"square",0.07); }
+    hero.prevY = hero.y;
     applyGravity(hero, dt);
     if (hero.x < camX+36){ hero.x = camX+36; hero.vx = Math.max(0, hero.vx); }
     if (hero.h * hero.scale > H * 0.42) hero.scale = (H * 0.42) / hero.h;
@@ -241,14 +270,21 @@
   }
   function checkStomp(){
     if (hitLock>0 || hero.onGround || hero.vy<=40) return;
-    const feet = { x:hero.x-34, y:hero.y-28, w:68, h:34 };
+    const feet = { x:hero.x-42, y:hero.y-34, w:84, h:42 };
+    const prevFeetBottom = (hero.prevY == null ? hero.y : hero.prevY) + 6;
+    const currFeetBottom = hero.y + 6;
     for (const e of enemies){
       if (!e.alive) continue;
       const h = enemyHeight(e), w = h * aspect(enemyImg(e));
-      const head = { x:e.x-w*0.22, y:e.y-h, w:w*0.44, h:h*0.22 };
-      if (!(feet.x < head.x+head.w && feet.x+feet.w > head.x && feet.y < head.y+head.h && feet.y+feet.h > head.y)) continue;
-      e.hits++; hitLock = 0.4; hero.vy = JUMP_V*0.55; hero.scale = Math.min(1.45, hero.scale + 0.07); beep(180,0.12,"square",0.1);
-      if (e.hits < 5) e.scale = Math.max(0.42, 1 - e.hits*0.14);
+      const hitW = Math.max(w*0.58, portrait ? 108 : 92);
+      const hitH = Math.max(h*0.28, portrait ? 58 : 48);
+      const head = { x:e.x-hitW/2, y:e.y-h, w:hitW, h:hitH };
+      const horizontal = feet.x < head.x+head.w && feet.x+feet.w > head.x;
+      const overlap = feet.y < head.y+head.h && feet.y+feet.h > head.y;
+      const crossedTop = prevFeetBottom <= head.y+12 && currFeetBottom >= head.y-8;
+      if (!horizontal || (!overlap && !crossedTop)) continue;
+      e.hits++; hitLock = 0.34; hero.vy = JUMP_V*0.55; hero.scale = Math.min(1.45, hero.scale + 0.07); beep(180,0.12,"square",0.1);
+      if (e.hits < 5) e.scale = Math.max(0.55, 1 - e.hits*0.12);
       else explode(e);
       hintEl.textContent = "Golpe " + e.hits + "/5";
       return;
@@ -302,7 +338,7 @@
     }
   }
   function update(dt){
-    if (dt>0.05) dt=0.05; clock += dt; hitLock = Math.max(0, hitLock-dt);
+    if (dt>0.05) dt=0.05; clock += dt; hitLock = Math.max(0, hitLock-dt); jumpBuffer = Math.max(0, jumpBuffer-dt);
     if (state!=="PLAYING") return;
     updateHero(dt);
     enemies.forEach(e => updateEnemy(e, dt));
