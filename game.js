@@ -135,28 +135,52 @@
   function clearTouchState(){ touch.left=false; touch.right=false; touch.jump=false; jumpBuffer=0; }
   function bindHold(el, prop){
     const active = new Set();
-    const on = ev => {
-      ev.preventDefault();
+    const press = id => {
+      active.add(id);
       ensureAudio();
-      if (ev.pointerId != null) {
-        active.add(ev.pointerId);
-        try { el.setPointerCapture(ev.pointerId); } catch (_) {}
-      }
-      if (prop === "jump") jumpBuffer = 0.20;
+      if (prop === "jump") jumpBuffer = 0.35;
       else touch[prop] = true;
     };
-    const off = ev => {
-      ev.preventDefault();
-      if (ev.pointerId != null) active.delete(ev.pointerId); else active.clear();
+    const release = id => {
+      active.delete(id);
       if (prop !== "jump") touch[prop] = active.size > 0;
-      if (ev.pointerId != null) {
-        try { if (el.hasPointerCapture(ev.pointerId)) el.releasePointerCapture(ev.pointerId); } catch (_) {}
-      }
     };
-    el.addEventListener("pointerdown", on, {passive:false});
-    el.addEventListener("pointerup", off, {passive:false});
-    el.addEventListener("pointercancel", off, {passive:false});
-    el.addEventListener("lostpointercapture", off, {passive:false});
+    const prevent = ev => { if (ev.cancelable) ev.preventDefault(); };
+
+    // Pointer Events cover current desktop and mobile browsers (mouse, touch and pen).
+    if (window.PointerEvent) {
+      el.addEventListener("pointerdown", ev => {
+        prevent(ev);
+        if (ev.button != null && ev.button !== 0) return;
+        press("p" + ev.pointerId);
+        try { el.setPointerCapture(ev.pointerId); } catch (_) {}
+      }, {passive:false});
+      ["pointerup", "pointercancel", "lostpointercapture"].forEach(type => {
+        el.addEventListener(type, ev => {
+          prevent(ev);
+          release("p" + ev.pointerId);
+        }, {passive:false});
+      });
+    } else {
+      // Fallback for older Safari/WebViews and browsers without Pointer Events.
+      el.addEventListener("touchstart", ev => {
+        prevent(ev);
+        for (let i=0; i<ev.changedTouches.length; i++) press("t" + ev.changedTouches[i].identifier);
+      }, {passive:false});
+      const endTouch = ev => {
+        prevent(ev);
+        for (let i=0; i<ev.changedTouches.length; i++) release("t" + ev.changedTouches[i].identifier);
+      };
+      el.addEventListener("touchend", endTouch, {passive:false});
+      el.addEventListener("touchcancel", endTouch, {passive:false});
+      el.addEventListener("mousedown", ev => {
+        if (ev.button !== 0) return;
+        prevent(ev); press("mouse");
+      });
+      window.addEventListener("mouseup", ev => {
+        if (ev.button === 0) release("mouse");
+      });
+    }
     el.addEventListener("contextmenu", ev => ev.preventDefault());
   }
   window.addEventListener("blur", clearTouchState);
