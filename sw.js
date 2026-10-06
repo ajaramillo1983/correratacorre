@@ -1,4 +1,4 @@
-const CACHE = "correr-v9";
+const CACHE = "correr-v10";
 const FILES = [
   "./", "./index.html", "./style.css", "./game.js", "./manifest.json",
   "./music.mp3", "./images/coin.png", "./images/hero1.png", "./images/hero2.png", "./images/enemy1.png", "./images/enemy2.png", "./images/victoria.png", "./images/icon-192.png", "./images/icon-512.png", "./images/apple-touch-icon.png", "./images/favicon-32.png"
