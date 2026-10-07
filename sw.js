@@ -1,4 +1,4 @@
-const CACHE = "correr-v10";
+const CACHE = "correr-v11";
 const FILES = [
   "./", "./index.html", "./style.css", "./game.js", "./manifest.json",
   "./music.mp3", "./images/coin.png", "./images/hero1.png", "./images/hero2.png", "./images/enemy1.png", "./images/enemy2.png", "./images/victoria.png", "./images/icon-192.png", "./images/icon-512.png", "./images/apple-touch-icon.png", "./images/favicon-32.png"
@@ -10,9 +10,25 @@ self.addEventListener("activate", event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", event => {
-  event.respondWith(caches.match(event.request).then(hit => hit || fetch(event.request).then(res => {
-    const copy = res.clone();
-    caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
-    return res;
-  }).catch(() => caches.match("./index.html"))));
+  const url = new URL(event.request.url);
+
+  // Never cache external requests such as the global play counter.
+  if (url.origin !== self.location.origin) {
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
+    return;
+  }
+
+  // Cache only same-origin GET requests used by the game.
+  if (event.request.method !== "GET") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(hit => hit || fetch(event.request).then(res => {
+      const copy = res.clone();
+      caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
+      return res;
+    }).catch(() => caches.match("./index.html")))
+  );
 });
