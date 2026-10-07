@@ -211,17 +211,17 @@
   const PLAY_URL = "https://abacus.jasoncameron.dev";
   const PLAY_KEY = "ajaramillo1983/correratacorre-partidas";
   function showPlays(n){
-    const text = n == null ? "Personas que han jugado: —" : "Personas que han jugado: " + n;
+    const text = n == null ? "Partidas jugadas: —" : "Partidas jugadas: " + n;
     document.querySelectorAll(".plays").forEach(el => { el.textContent = text; });
   }
   function loadPlays(){
-    fetch(PLAY_URL + "/get/" + PLAY_KEY).then(r => r.json()).then(d => showPlays(typeof d.value === "number" ? d.value : 0)).catch(() => showPlays(null));
+    fetch(PLAY_URL + "/get/" + PLAY_KEY, { cache: "no-store" }).then(r => r.json()).then(d => showPlays(typeof d.value === "number" ? d.value : 0)).catch(() => showPlays(null));
   }
   function recordFinish(){
     const key = "crc-counted-" + runToken;
     if (sessionStorage.getItem(key)) { loadPlays(); return; }
     sessionStorage.setItem(key, "1");
-    fetch(PLAY_URL + "/hit/" + PLAY_KEY).then(r => r.json()).then(d => showPlays(d.value)).catch(() => loadPlays());
+    fetch(PLAY_URL + "/hit/" + PLAY_KEY, { cache: "no-store" }).then(r => r.json()).then(d => showPlays(d.value)).catch(() => loadPlays());
   }
   loadPlays();
   function showBrief(n){
