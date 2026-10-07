@@ -102,3 +102,32 @@ body { display: grid; place-items: center; }
   margin: 0; font-size: 13px; font-weight: 900; color: #1d5ca6;
   background: #fff; border: 2px solid #9ec6f5; border-radius: 12px; padding: 8px 10px;
 }
+
+/* Victory screen: fit the full artwork and both actions inside short mobile viewports. */
+#victory.popup { padding: 8px; }
+#victory .popup-card {
+  width: min(460px, 96vw);
+  max-height: calc(100dvh - 16px);
+  overflow: hidden;
+  padding: 8px;
+  gap: 8px;
+  justify-content: center;
+}
+#victory .win-art {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100dvh - 190px);
+  object-fit: contain;
+  flex: 0 1 auto;
+  margin: 0 auto;
+}
+@media (max-height: 720px) {
+  #victory .win-art { max-height: calc(100dvh - 170px); }
+  #victory .plays { padding: 5px 8px; font-size: 12px; }
+  #victory .btn-install, #victory #btn-again { padding: 9px 14px; font-size: 14px; }
+}
+@media (max-height: 560px) {
+  #victory .win-art { max-height: calc(100dvh - 145px); }
+}
